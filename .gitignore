@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+
+# Generated docs
+docs/swagger.yaml
+
+# ESLint
+.eslintcache
+
+# Test outputs
+test-results/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
