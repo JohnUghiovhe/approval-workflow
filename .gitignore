@@ -5,6 +5,9 @@ node_modules/
 dist/
 build/
 
+# Prisma generated client
+src/generated/
+
 # Environment variables
 .env
 

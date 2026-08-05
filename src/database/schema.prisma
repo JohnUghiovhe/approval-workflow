@@ -1,10 +1,83 @@
-// Placeholder Prisma schema for Ticket 1.3. Models and initial migration
-// land in Ticket 1.4.
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+enum request_status {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RETURNED
+}
+
+enum activity_action {
+  SUBMISSION
+  APPROVAL
+  REJECTION
+  RETURN
+  RESUBMISSION
+  COMMENT
+}
+
+model reviewer {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  role       String   @default("reviewer")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  comments   comment[]
+  activities activity[]
+}
+
+model request {
+  id             String         @id @default(uuid())
+  title          String
+  description    String
+  department     String
+  requester_name String
+  status         request_status @default(SUBMITTED)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+
+  comments       comment[]
+  activities     activity[]
+
+  @@index([status])
+}
+
+model comment {
+  id          String   @id @default(uuid())
+  request_id  String
+  reviewer_id String
+  body        String
+  created_at  DateTime @default(now())
+
+  request     request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  reviewer    reviewer @relation(fields: [reviewer_id], references: [id], onDelete: Restrict)
+
+  @@index([request_id])
+  @@index([reviewer_id])
+}
+
+model activity {
+  id          String          @id @default(uuid())
+  request_id  String
+  reviewer_id String?
+  action      activity_action
+  from_status request_status?
+  to_status   request_status?
+  note        String?
+  created_at  DateTime        @default(now())
+
+  request     request         @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  reviewer    reviewer?       @relation(fields: [reviewer_id], references: [id], onDelete: SetNull)
+
+  @@index([request_id])
+  @@index([reviewer_id])
 }
