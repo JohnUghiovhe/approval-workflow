@@ -28,8 +28,8 @@ model reviewer {
   name       String
   email      String   @unique
   role       String   @default("reviewer")
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  created_at DateTime @default(now()) @db.Timestamptz(3)
+  updated_at DateTime @updatedAt @db.Timestamptz(3)
 
   comments   comment[]
   activities activity[]
@@ -42,8 +42,8 @@ model request {
   department     String
   requester_name String
   status         request_status @default(SUBMITTED)
-  created_at     DateTime       @default(now())
-  updated_at     DateTime       @updatedAt
+  created_at     DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at     DateTime       @updatedAt @db.Timestamptz(3)
 
   comments       comment[]
   activities     activity[]
@@ -56,7 +56,7 @@ model comment {
   request_id  String
   reviewer_id String
   body        String
-  created_at  DateTime @default(now())
+  created_at  DateTime @default(now()) @db.Timestamptz(3)
 
   request     request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
   reviewer    reviewer @relation(fields: [reviewer_id], references: [id], onDelete: Restrict)
@@ -73,7 +73,7 @@ model activity {
   from_status request_status?
   to_status   request_status?
   note        String?
-  created_at  DateTime        @default(now())
+  created_at  DateTime        @default(now()) @db.Timestamptz(3)
 
   request     request         @relation(fields: [request_id], references: [id], onDelete: Cascade)
   reviewer    reviewer?       @relation(fields: [reviewer_id], references: [id], onDelete: SetNull)

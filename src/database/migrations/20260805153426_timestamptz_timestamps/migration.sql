@@ -1,0 +1,13 @@
+-- AlterTable
+ALTER TABLE "activity" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3);
+
+-- AlterTable
+ALTER TABLE "comment" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3);
+
+-- AlterTable
+ALTER TABLE "request" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3),
+ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMPTZ(3);
+
+-- AlterTable
+ALTER TABLE "reviewer" ALTER COLUMN "created_at" SET DATA TYPE TIMESTAMPTZ(3),
+ALTER COLUMN "updated_at" SET DATA TYPE TIMESTAMPTZ(3);

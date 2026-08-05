@@ -79,6 +79,7 @@ async function seedReviewers(): Promise<void> {
 async function seedRequests(): Promise<void> {
   const existingCount = await prisma.request.count();
   if (existingCount > 0) {
+    logger.info(SYS_MSG.SEED_SKIPPED);
     return;
   }
   await prisma.request.createMany({ data: REQUEST_SEEDS });

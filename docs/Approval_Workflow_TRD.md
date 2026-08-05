@@ -142,14 +142,12 @@ history.
 
 # 10. Workflow
 
-Current State Action Next State
-
----
-
-Submitted Approve Approved
-Submitted Reject Rejected
-Submitted Return Returned
-Returned Resubmit Submitted
+| Current State | Action   | Next State |
+| ------------- | -------- | ---------- |
+| Submitted     | Approve  | Approved   |
+| Submitted     | Reject   | Rejected   |
+| Submitted     | Return   | Returned   |
+| Returned      | Resubmit | Submitted  |
 
 ---
 
@@ -176,22 +174,20 @@ business logic and persistence.
 
 # 12. Technology Stack
 
-Category Choice
-
----
-
-Runtime Node.js 22 LTS
-Language TypeScript
-Framework Express 5
-ORM Prisma
-Database PostgreSQL
-Validation Zod
-Logging Pino
-Testing Vitest + Supertest
-API Docs Swagger/OpenAPI
-Formatting ESLint + Prettier
-Git Hooks Husky + lint-staged
-Containerization Docker Compose
+| Category         | Choice              |
+| ---------------- | ------------------- |
+| Runtime          | Node.js 22 LTS      |
+| Language         | TypeScript          |
+| Framework        | Express 5           |
+| ORM              | Prisma              |
+| Database         | PostgreSQL          |
+| Validation       | Zod                 |
+| Logging          | Pino                |
+| Testing          | Vitest + Supertest  |
+| API Docs         | Swagger/OpenAPI     |
+| Formatting       | ESLint + Prettier   |
+| Git Hooks        | Husky + lint-staged |
+| Containerization | Docker Compose      |
 
 ---
 
@@ -290,12 +286,10 @@ Integration Tests
 
 # 20. Requirement Traceability
 
-Requirement Implementation
-
----
-
-FR-1 Request endpoints + RequestService
-FR-2 WorkflowService
-FR-3 CommentService
-FR-4 Authorization middleware
-FR-5 Activity repository + transaction
+| Requirement | Implementation                     |
+| ----------- | ---------------------------------- |
+| FR-1        | Request endpoints + RequestService |
+| FR-2        | WorkflowService                    |
+| FR-3        | CommentService                     |
+| FR-4        | Authorization middleware           |
+| FR-5        | Activity repository + transaction  |

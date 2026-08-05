@@ -1,12 +1,11 @@
-# Placeholder compose file for Ticket 1.3. PostgreSQL service is the
-# initial container needed for the Prisma-backed data layer.
+# Local PostgreSQL service backing the Prisma data layer.
 services:
   postgres:
     image: postgres:16-alpine
     container_name: approval-workflow-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
       POSTGRES_USER: approval
       POSTGRES_PASSWORD: approval
@@ -14,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U approval -d approval_workflow"]
+      test: ['CMD-SHELL', 'pg_isready -U approval -d approval_workflow']
       interval: 10s
       timeout: 5s
       retries: 5

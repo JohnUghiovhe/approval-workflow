@@ -3,6 +3,7 @@ import { HttpStatus } from '../constants/http-status.ts';
 import { SYS_MSG } from '../constants/system.messages.ts';
 import { AppError } from '../errors/app-error.ts';
 import type { ApiErrorResponse } from '../types/api-response.ts';
+import { logger } from '../utils/logger.ts';
 
 // Central error middleware. Anything not an AppError becomes a generic 500
 // so internal details never leak to clients.
@@ -14,6 +15,14 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
 
   const statusCode = err instanceof AppError ? err.statusCode : HttpStatus.INTERNAL_SERVER_ERROR;
   const message = err instanceof AppError ? err.message : SYS_MSG.INTERNAL_SERVER_ERROR;
+
+  // 5xx are real failures and need an error-level trace for operators; 4xx
+  // are client mistakes and only warrant a warning to avoid noisy stacks.
+  if (statusCode >= 500) {
+    logger.error({ err, method: req.method, url: req.url, statusCode }, message);
+  } else {
+    logger.warn({ err, method: req.method, url: req.url, statusCode }, message);
+  }
 
   const body: ApiErrorResponse = { statusCode, message };
   if (err instanceof AppError && err.details !== undefined) {
