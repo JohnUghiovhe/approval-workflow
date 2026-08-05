@@ -1,5 +1,6 @@
 ﻿import prisma from './index.ts';
 import { SYS_MSG } from '../shared/constants/system.messages.ts';
+import { logger } from '../shared/utils/logger.ts';
 
 interface ReviewerSeed {
   name: string;
@@ -89,12 +90,12 @@ async function main(): Promise<void> {
 
   const reviewerCount = await prisma.reviewer.count();
   const requestCount = await prisma.request.count();
-  console.log(`${SYS_MSG.SEED_SUCCESS} (${reviewerCount} reviewers, ${requestCount} requests)`);
+  logger.info(`${SYS_MSG.SEED_SUCCESS} (${reviewerCount} reviewers, ${requestCount} requests)`);
 }
 
 main()
   .catch((error: unknown) => {
-    console.error(SYS_MSG.INTERNAL_SERVER_ERROR, error);
+    logger.error({ err: error }, SYS_MSG.INTERNAL_SERVER_ERROR);
     process.exitCode = 1;
   })
   .finally(async () => {

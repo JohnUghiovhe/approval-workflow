@@ -1,9 +1,8 @@
 import type { RequestHandler } from 'express';
 import type { ZodType } from 'zod';
-import { HttpStatus } from '../constants/http-status.ts';
 import { SYS_MSG } from '../constants/system.messages.ts';
-import { AppError } from '../errors/app-error.ts';
 import { formatZodError } from '../errors/error-formatter.ts';
+import { ValidationError } from '../errors/validation-error.ts';
 
 type ValidationSource = 'body' | 'query' | 'params';
 
@@ -26,13 +25,7 @@ export function validate(schema: ValidationSchema): RequestHandler {
       }
       const result = sourceSchema.safeParse(req[source]);
       if (!result.success) {
-        next(
-          new AppError(
-            HttpStatus.UNPROCESSABLE_ENTITY,
-            SYS_MSG.VALIDATION_ERROR,
-            formatZodError(result.error),
-          ),
-        );
+        next(new ValidationError(SYS_MSG.VALIDATION_ERROR, formatZodError(result.error)));
         return;
       }
       // Replace the raw payload with the parsed output so controllers see
