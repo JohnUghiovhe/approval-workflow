@@ -17,7 +17,16 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "docs": "echo \"Error: no docs specified\" && exit 1",
-    "prepare": "husky install"
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{md,json,yaml,yml}": [
+      "prettier --write"
+    ]
   },
   "prisma": {
     "seed": "tsx src/database/seed.ts"
