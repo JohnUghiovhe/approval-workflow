@@ -12,6 +12,7 @@ export const SYS_MSG = {
   DUPLICATE_DECISION: 'A decision has already been recorded for this request',
   INVALID_AUTHORIZATION_HEADER: 'Missing or invalid authorization header',
   REVIEWER_NOT_FOUND: 'Reviewer not found',
+  COMMENT_ADDED: 'Comment added successfully',
   INTERNAL_SERVER_ERROR: 'An unexpected error occurred',
   SEED_SUCCESS: 'Database seeded successfully',
   SEED_SKIPPED: 'Database already contains data; skipping seed',
