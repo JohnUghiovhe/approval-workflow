@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from '../../generated/prisma/client.ts';
-import type { activity_action, request_status } from '../../generated/prisma/client.ts';
+import type { request_status } from '../../generated/prisma/client.ts';
+import type { CommentDto } from '../comment/comment.types.ts';
+import type { ActivityDto } from '../activity/activity.types.ts';
 
 export type DbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -9,24 +11,8 @@ export interface ListRequestsInput {
   pageSize: number;
 }
 
-export interface CommentDto {
-  id: string;
-  requestId: string;
-  reviewerId: string;
-  body: string;
-  createdAt: string;
-}
-
-export interface ActivityDto {
-  id: string;
-  requestId: string;
-  reviewerId: string | null;
-  action: activity_action;
-  fromStatus: request_status | null;
-  toStatus: request_status | null;
-  note: string | null;
-  createdAt: string;
-}
+// Reuse the canonical CommentDto and ActivityDto definitions from their
+// owning modules to avoid duplication and drift.
 
 export interface RequestDto {
   id: string;

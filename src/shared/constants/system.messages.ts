@@ -8,6 +8,7 @@ export const SYS_MSG = {
   VALIDATION_ERROR: 'Validation failed',
   TOO_MANY_REQUESTS: 'Too many requests, please try again later',
   REQUEST_TIMEOUT: 'Request timed out',
+  PAYLOAD_TOO_LARGE: 'Payload too large',
   REQUEST_CREATED: 'Request created successfully',
   REQUEST_NOT_FOUND: 'Request not found',
   INVALID_STATE_TRANSITION: 'Request cannot transition to the requested state',

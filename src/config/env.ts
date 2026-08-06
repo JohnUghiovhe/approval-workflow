@@ -16,6 +16,8 @@ const envSchema = z.object({
     .positive()
     .default(15 * 60 * 1000),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  JSON_BODY_LIMIT: z.string().default('100kb'),
+  TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
 });
 
 // Provide a throwaway DATABASE_URL under NODE_ENV=test so unit tests that

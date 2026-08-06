@@ -10,6 +10,12 @@ const isDev = env.NODE_ENV === 'development';
 // the configured LOG_LEVEL.
 export const logger: Logger = pino({
   level: (env.NODE_ENV === 'test' ? 'silent' : env.LOG_LEVEL) as LevelWithSilent,
+  // Redact sensitive headers such as Authorization and cookies from logs so
+  // credentials do not leak into structured log streams or downstream sinks.
+  redact: {
+    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers.authorization'],
+    censor: '[Redacted]',
+  },
   ...(isDev
     ? {
         transport: {

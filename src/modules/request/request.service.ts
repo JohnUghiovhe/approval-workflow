@@ -7,13 +7,16 @@ import { ValidationError } from '../../shared/errors/validation-error.ts';
 import { activityService } from '../activity/activity.service.ts';
 import * as requestRepository from './request.repository.ts';
 import { createRequestSchema, listRequestsQuerySchema } from './request.schema.ts';
-import type { ActivityDto, CommentDto, ListRequestsResult, RequestDto } from './request.types.ts';
+import type { ListRequestsResult, RequestDto } from './request.types.ts';
+import type { CommentDto } from '../comment/comment.types.ts';
+import type { ActivityDto } from '../activity/activity.types.ts';
 
-function toCommentDto(row: comment): CommentDto {
+function toCommentDto(row: comment & { reviewer?: { name?: string } | null }): CommentDto {
   return {
     id: row.id,
     requestId: row.request_id,
     reviewerId: row.reviewer_id,
+    reviewerName: row.reviewer?.name ?? '',
     body: row.body,
     createdAt: row.created_at.toISOString(),
   };

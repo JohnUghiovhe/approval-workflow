@@ -20,7 +20,3 @@ export function sendCreated<T>(
 ): Response {
   return sendSuccess(res, data, message, HttpStatus.CREATED);
 }
-
-export function sendNoContent(res: Response): Response {
-  return res.status(HttpStatus.NO_CONTENT).end();
-}

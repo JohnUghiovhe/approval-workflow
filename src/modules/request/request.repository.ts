@@ -40,7 +40,7 @@ export function findById(client: DbClient, id: string): Promise<RequestWithRelat
   return client.request.findUnique({
     where: { id },
     include: {
-      comments: { orderBy: { created_at: 'asc' } },
+      comments: { orderBy: { created_at: 'asc' }, include: { reviewer: true } },
       activities: { orderBy: { created_at: 'asc' } },
     },
   });

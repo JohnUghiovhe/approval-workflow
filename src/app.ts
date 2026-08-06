@@ -7,16 +7,23 @@ import { errorHandler } from './shared/middleware/error-handler.ts';
 import { notFoundHandler } from './shared/middleware/not-found.ts';
 import { rateLimiter } from './shared/middleware/rate-limiter.ts';
 import { requestTimeout } from './shared/middleware/timeout.ts';
+import { env } from './config/env.ts';
 import healthRouter from './modules/health/health.routes.ts';
 import apiRouter from './routes/index.ts';
 
 const app: Application = express();
 
+// Respect reverse proxy deployments: allow configuring the trust proxy
+// hop count via environment. Default 0 keeps behavior unchanged locally.
+if (env.TRUST_PROXY > 0) {
+  app.set('trust proxy', env.TRUST_PROXY);
+}
+
 app.use(httpLogger);
 app.use(helmet());
 app.use(cors());
 app.use(compression());
-app.use(express.json());
+app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
 
 // Rate limiting and the request timeout run for every route but explicitly
 // skip the health probes so orchestration traffic is never throttled or cut

@@ -150,6 +150,7 @@ describe('RequestService', () => {
         id: 'c-1',
         requestId: 'req-1',
         reviewerId: 'reviewer-1',
+        reviewerName: '',
         body: 'Looks good',
         createdAt: '2026-01-02T00:00:00.000Z',
       },

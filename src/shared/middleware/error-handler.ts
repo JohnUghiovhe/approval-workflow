@@ -28,9 +28,20 @@ function getCorrelationId(req: Parameters<ErrorRequestHandler>[1]): string | und
 // Express's JSON body parser rejects malformed bodies with a SyntaxError
 // flagged with a 4xx status (type entity.parse.failed). Map those to 400 so a
 // client mistake is not reported as a 500 server failure.
-function isBodyParserError(err: unknown): err is SyntaxError & { status: number } {
+function isBodyParserError(err: unknown): err is { status: number; type?: string } {
   const status = (err as { status?: unknown } | null)?.status;
-  return err instanceof SyntaxError && typeof status === 'number' && status >= 400 && status < 500;
+  const type = (err as { type?: unknown } | null)?.type;
+  // body-parser signals malformed JSON as a SyntaxError with a 4xx status and
+  // signals oversize payloads and other entity issues with a `type` like
+  // `entity.too.large` and a numeric status (e.g. 413). Treat any error that
+  // originates from the body parser with a 4xx status as a client error so
+  // it is returned as such instead of being promoted to a 500.
+  return (
+    typeof status === 'number' &&
+    status >= 400 &&
+    status < 500 &&
+    (err instanceof SyntaxError || (typeof type === 'string' && type.startsWith('entity.')))
+  );
 }
 
 // Map Prisma constraint errors onto the typed error hierarchy so database
@@ -59,6 +70,10 @@ function normalizeError(err: unknown): AppError {
     return err;
   }
   if (isBodyParserError(err)) {
+    const status = (err as { status: number }).status;
+    if (status === HttpStatus.PAYLOAD_TOO_LARGE) {
+      return new AppError(HttpStatus.PAYLOAD_TOO_LARGE, SYS_MSG.PAYLOAD_TOO_LARGE);
+    }
     return new BadRequestError(SYS_MSG.BAD_REQUEST);
   }
   return new AppError(HttpStatus.INTERNAL_SERVER_ERROR, SYS_MSG.INTERNAL_SERVER_ERROR);
