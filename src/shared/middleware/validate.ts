@@ -35,7 +35,15 @@ export function validate(schema: ValidationSchema): RequestHandler {
         next(new ValidationError(SYS_MSG.VALIDATION_ERROR, formatZodError(result.error)));
         return;
       }
-      parsedRequest[source] = result.data;
+      // Express 5 exposes req.query as a getter-only accessor, so a direct
+      // assignment throws in strict mode. Replacing the property with a plain,
+      // writable data property works for body, query and params alike.
+      Object.defineProperty(parsedRequest, source, {
+        value: result.data,
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      });
     }
     next();
   };

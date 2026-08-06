@@ -15,12 +15,21 @@ const createRequestSchema = z.object({
   department: z.string().min(1),
 });
 
+const searchQuerySchema = z.object({
+  q: z.string().min(1),
+  page: z.coerce.number().int().min(1).default(1),
+});
+
 function buildTestApp(): Application {
   const app: Application = express();
   app.use(express.json());
 
   app.post('/requests', validate({ body: createRequestSchema }), (req: Request, res: Response) => {
     sendSuccess(res, { received: req.body });
+  });
+
+  app.get('/search', validate({ query: searchQuerySchema }), (req: Request, res: Response) => {
+    sendSuccess(res, { received: req.query });
   });
 
   app.get(
@@ -58,6 +67,20 @@ describe('validation layer', () => {
 
     expect(res.status).toBe(HttpStatus.OK);
     expect(res.body.data.received).toEqual({ title: 'Laptop upgrade', department: 'Engineering' });
+  });
+
+  it('writes normalized query values back onto the request', async () => {
+    const res = await request(app).get('/search?q=monitor&page=2');
+
+    expect(res.status).toBe(HttpStatus.OK);
+    expect(res.body.data.received).toEqual({ q: 'monitor', page: 2 });
+  });
+
+  it('applies query defaults and coerces numeric query values', async () => {
+    const res = await request(app).get('/search?q=monitor');
+
+    expect(res.status).toBe(HttpStatus.OK);
+    expect(res.body.data.received).toEqual({ q: 'monitor', page: 1 });
   });
 
   it('forwards rejected async handlers to the error middleware', async () => {
