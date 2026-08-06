@@ -76,8 +76,10 @@ Interactive API documentation is served by Swagger UI at
 http://localhost:3000/api/docs. The machine-readable spec is available at
 http://localhost:3000/api/docs/openapi.json, and its source of truth lives in
 [`docs/openapi.yaml`](docs/openapi.yaml). The served document reads
-`info.version` from `package.json` and sets `servers` from the configured port,
-so the docs always describe the deployment actually serving them.
+`info.version` from `package.json` and sets `servers` to a relative URL (`/`),
+so Swagger UI targets the same origin that serves the docs in every deployment.
+Visiting `http://localhost:3000/api/docs` redirects to
+`http://localhost:3000/api/docs/`, keeping the UI's relative asset paths intact.
 
 ## API Walkthrough
 

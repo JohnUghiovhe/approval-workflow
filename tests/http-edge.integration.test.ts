@@ -137,8 +137,8 @@ describe('security headers', () => {
     expect(res.status).toBe(HttpStatus.OK);
     expect(res.headers['access-control-allow-origin']).toBe('*');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
-    expect(res.headers['x-frame-options']).toBeDefined();
-    expect(res.headers['x-dns-prefetch-control']).toBeDefined();
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(res.headers['x-dns-prefetch-control']).toBe('off');
   });
 });
 
@@ -154,11 +154,12 @@ describe('list behavior through /api', () => {
   });
 
   itDb('paginates correctly and reports total and totalPages', async () => {
-    const created = await Promise.all(
-      Array.from({ length: 6 }, (_, index) =>
-        createRequest({ title: `Pagination request ${index}` }),
-      ),
-    );
+    // Sequential creation gives strictly increasing created_at values, so the
+    // created_at desc ordering is deterministic across pages.
+    const created = [];
+    for (let index = 0; index < 6; index += 1) {
+      created.push(await createRequest({ title: `Pagination request ${index}` }));
+    }
     const ids = created.map((item) => item.id);
 
     const firstPage = await request(app).get('/api/requests?page=1&pageSize=2');

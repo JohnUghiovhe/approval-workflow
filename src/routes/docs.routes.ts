@@ -13,7 +13,20 @@ const router = Router();
 router.get('/openapi.json', (_req, res) => {
   res.json(openApiDocument);
 });
-router.get('/', swaggerUi.setup(openApiDocument));
+
+// Swagger UI's generated HTML references its assets relatively
+// (./swagger-ui.css), so the page must be served at the slash-terminated URL.
+// A bare /api/docs (no trailing slash) would resolve those assets one level up
+// and render a broken UI, so redirect it to /api/docs/ first.
+const serveDocs = swaggerUi.setup(openApiDocument);
+router.get('/', (req, res, next) => {
+  const requestPath = req.originalUrl.split('?')[0] ?? req.originalUrl;
+  if (!requestPath.endsWith('/')) {
+    res.redirect(301, `${requestPath}/`);
+    return;
+  }
+  serveDocs(req, res, next);
+});
 
 // Static assets (css/js) and the generated swagger-ui-init.js are served from
 // the swagger-ui-dist directory under the same prefix.

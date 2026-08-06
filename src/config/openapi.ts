@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
-import { env } from './env.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -31,9 +30,10 @@ const rawSpec = readFileSync(specPath, 'utf8');
 const document = parse(rawSpec) as OpenApiDocument;
 
 // Overwrite the static yaml fields with runtime values: version from
-// package.json and servers from the configured port so the docs describe the
-// deployment actually serving them.
+// package.json and a relative server URL. A relative `servers[].url` resolves
+// against the origin serving the spec, so Swagger UI's "Try it out" targets
+// the same host in every deployment instead of a hard-coded localhost.
 document.info = { ...document.info, version: packageJson.version };
-document.servers = [{ url: `http://localhost:${env.PORT}` }];
+document.servers = [{ url: '/' }];
 
 export const openApiDocument: OpenApiDocument = document;
