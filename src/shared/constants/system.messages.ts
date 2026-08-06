@@ -8,6 +8,8 @@ export const SYS_MSG = {
   VALIDATION_ERROR: 'Validation failed',
   REQUEST_CREATED: 'Request created successfully',
   REQUEST_NOT_FOUND: 'Request not found',
+  INVALID_STATE_TRANSITION: 'Request cannot transition to the requested state',
+  DUPLICATE_DECISION: 'A decision has already been recorded for this request',
   INVALID_AUTHORIZATION_HEADER: 'Missing or invalid authorization header',
   REVIEWER_NOT_FOUND: 'Reviewer not found',
   INTERNAL_SERVER_ERROR: 'An unexpected error occurred',

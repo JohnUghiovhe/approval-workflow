@@ -32,6 +32,26 @@ function toActivityDto(row: activity): ActivityDto {
   };
 }
 
+// Map snake_case rows to the camelCase API shape (rule 12). Relations are
+// optional because list/create rows do not load them. Shared with the decision
+// module so every endpoint returns the same request payload.
+export function toRequestDto(
+  row: request & { comments?: comment[]; activities?: activity[] },
+): RequestDto {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    department: row.department,
+    requesterName: row.requester_name,
+    status: row.status,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    comments: (row.comments ?? []).map(toCommentDto),
+    activities: (row.activities ?? []).map(toActivityDto),
+  };
+}
+
 export class RequestService {
   async createRequest(payload: unknown): Promise<RequestDto> {
     const parsed = createRequestSchema.safeParse(payload);
@@ -53,7 +73,7 @@ export class RequestService {
       return row;
     });
 
-    return this.toRequestDto(created);
+    return toRequestDto(created);
   }
 
   async listRequests(query: unknown): Promise<ListRequestsResult> {
@@ -73,7 +93,7 @@ export class RequestService {
     ]);
 
     return {
-      data: rows.map((row) => this.toRequestDto(row)),
+      data: rows.map(toRequestDto),
       page,
       pageSize,
       total,
@@ -85,25 +105,6 @@ export class RequestService {
     if (!row) {
       throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: id });
     }
-    return this.toRequestDto(row);
-  }
-
-  // Map snake_case rows to the camelCase API shape (rule 12). Relations are
-  // optional because list/create rows do not load them.
-  private toRequestDto(
-    row: request & { comments?: comment[]; activities?: activity[] },
-  ): RequestDto {
-    return {
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      department: row.department,
-      requesterName: row.requester_name,
-      status: row.status,
-      createdAt: row.created_at.toISOString(),
-      updatedAt: row.updated_at.toISOString(),
-      comments: (row.comments ?? []).map(toCommentDto),
-      activities: (row.activities ?? []).map(toActivityDto),
-    };
+    return toRequestDto(row);
   }
 }
