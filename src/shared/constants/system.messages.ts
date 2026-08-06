@@ -8,6 +8,8 @@ export const SYS_MSG = {
   VALIDATION_ERROR: 'Validation failed',
   REQUEST_CREATED: 'Request created successfully',
   REQUEST_NOT_FOUND: 'Request not found',
+  INVALID_AUTHORIZATION_HEADER: 'Missing or invalid authorization header',
+  REVIEWER_NOT_FOUND: 'Reviewer not found',
   INTERNAL_SERVER_ERROR: 'An unexpected error occurred',
   SEED_SUCCESS: 'Database seeded successfully',
   SEED_SKIPPED: 'Database already contains data; skipping seed',
