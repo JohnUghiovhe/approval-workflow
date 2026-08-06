@@ -2,13 +2,14 @@ import type { RequestHandler } from 'express';
 import { env } from '../../config/env.ts';
 import { SYS_MSG } from '../constants/system.messages.ts';
 import { RequestTimeoutError } from '../errors/request-timeout-error.ts';
+import { isHealthPath } from '../utils/health-paths.ts';
 
 // Factory so tests can use a short window; production wiring uses the env
 // default via the exported `requestTimeout` instance.
 export function createRequestTimeout(durationMs: number): RequestHandler {
   return (req, res, next) => {
     // Health probes are fast by contract, so never let them be cut off.
-    if (req.path.startsWith('/health')) {
+    if (isHealthPath(req.path)) {
       next();
       return;
     }

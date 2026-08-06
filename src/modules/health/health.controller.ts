@@ -8,11 +8,11 @@ import type { HealthService } from './health.service.ts';
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
-  // Liveness: the process answers, so the check reports the database state but
-  // always responds 200. A crashed process is what liveness needs to detect.
+  // Liveness: the process answers, so return an app-only report immediately
+  // without probing the database. A crashed or hung process is what liveness
+  // needs to detect; coupling it to the database would defeat that.
   liveness = catchAsync(async (_req: Request, res: Response) => {
-    const databaseUp = await this.healthService.isDatabaseUp();
-    const result = await this.healthService.check(databaseUp);
+    const result = this.healthService.liveness();
     sendSuccess(res, result, SYS_MSG.OPERATION_SUCCESSFUL);
   });
 

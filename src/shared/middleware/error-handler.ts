@@ -11,13 +11,6 @@ import { ValidationError } from '../errors/validation-error.ts';
 import type { ApiErrorResponse } from '../types/api-response.ts';
 import { logger } from '../utils/logger.ts';
 
-// Derive the failing resource id from the matched route so logs and responses
-// can be correlated with the request row that failed.
-function getRequestId(req: Parameters<ErrorRequestHandler>[1]): string | undefined {
-  const paramId = req.params.id;
-  return typeof paramId === 'string' && paramId.length > 0 ? paramId : undefined;
-}
-
 // Derive the request correlation id set by the pino-http middleware (genReqId)
 // so error lines can be traced alongside the access log for the same request.
 function getCorrelationId(req: Parameters<ErrorRequestHandler>[1]): string | undefined {
@@ -72,7 +65,12 @@ function normalizeError(err: unknown): AppError {
   if (isBodyParserError(err)) {
     const status = (err as { status: number }).status;
     if (status === HttpStatus.PAYLOAD_TOO_LARGE) {
-      return new AppError(HttpStatus.PAYLOAD_TOO_LARGE, SYS_MSG.PAYLOAD_TOO_LARGE);
+      return new AppError(
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        SYS_MSG.PAYLOAD_TOO_LARGE,
+        undefined,
+        ERROR_CODES.PAYLOAD_TOO_LARGE,
+      );
     }
     return new BadRequestError(SYS_MSG.BAD_REQUEST);
   }
@@ -90,8 +88,8 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   const normalized = normalizeError(err);
   const statusCode = normalized.statusCode;
   const message = normalized.message;
-  const requestId = getRequestId(req);
   const correlationId = getCorrelationId(req);
+  const requestId = correlationId;
 
   // 5xx are real failures and need an error-level trace for operators; 4xx
   // are client mistakes and only warrant a warning to avoid noisy stacks. The

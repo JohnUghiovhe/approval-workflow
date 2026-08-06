@@ -23,13 +23,9 @@ app.use(httpLogger);
 app.use(helmet());
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
-
-// Rate limiting and the request timeout run for every route but explicitly
-// skip the health probes so orchestration traffic is never throttled or cut
-// off. Both forward typed errors to the central handler for a standard 4xx.
 app.use(rateLimiter);
 app.use(requestTimeout);
+app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
 
 // Health lives outside /api and is mounted before the aggregate router so
 // liveness/readiness probes never collide with request routing.

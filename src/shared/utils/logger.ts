@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { pino, type Logger, type LevelWithSilent } from 'pino';
 import { pinoHttp, type GenReqId, type HttpLogger } from 'pino-http';
 import { env } from '../../config/env.ts';
+import { isHealthPath } from './health-paths.ts';
 
 const isDev = env.NODE_ENV === 'development';
 
@@ -49,5 +50,5 @@ export const httpLogger: HttpLogger = pinoHttp({
   logger,
   genReqId,
   customProps: (req) => ({ correlationId: req.id }),
-  autoLogging: { ignore: (req) => (req.url ?? '').startsWith('/health') },
+  autoLogging: { ignore: (req) => isHealthPath((req.url ?? '').split('?')[0] ?? '') },
 });

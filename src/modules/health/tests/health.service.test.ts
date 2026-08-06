@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HealthService } from '../health.service.ts';
-import { healthResponseSchema } from '../health.schema.ts';
+import { healthResponseSchema, livenessResponseSchema } from '../health.schema.ts';
 
 const mocks = vi.hoisted(() => ({
   probeDatabase: vi.fn(),
@@ -37,6 +37,14 @@ describe('HealthService', () => {
     expect(Number.isNaN(Date.parse(result.timestamp))).toBe(false);
     expect(result.uptime).toBeGreaterThanOrEqual(0);
     expect(result.version).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it('liveness returns an app-only report without a database check', () => {
+    const result = service.liveness();
+
+    expect(livenessResponseSchema.safeParse(result).success).toBe(true);
+    expect(result.status).toBe('ok');
+    expect(result).not.toHaveProperty('checks');
   });
 
   it('isDatabaseUp delegates to the repository probe', async () => {

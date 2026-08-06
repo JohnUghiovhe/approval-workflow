@@ -4,7 +4,7 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
-const envSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1),
@@ -16,7 +16,16 @@ const envSchema = z.object({
     .positive()
     .default(15 * 60 * 1000),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
-  JSON_BODY_LIMIT: z.string().default('100kb'),
+  // body-parser only understands the `bytes` grammar, so reject anything else
+  // (e.g. "unlimited") at startup instead of failing when app.ts wires the
+  // express.json limit.
+  JSON_BODY_LIMIT: z
+    .string()
+    .regex(
+      /^\d+(\.\d+)?\s*(b|kb|mb|gb|tb|pb)?$/i,
+      'must be a byte-size value like 100kb, 2mb, or 1gb',
+    )
+    .default('100kb'),
   TRUST_PROXY: z.coerce.number().int().nonnegative().default(0),
 });
 

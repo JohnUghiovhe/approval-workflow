@@ -14,3 +14,13 @@ export const healthResponseSchema = z.object({
 });
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+// Contract for the app-only liveness report on GET /health.
+export const livenessResponseSchema = z.object({
+  status: z.literal('ok'),
+  timestamp: z.string().datetime(),
+  uptime: z.number().nonnegative(),
+  version: z.string().min(1),
+});
+
+export type LivenessResponse = z.infer<typeof livenessResponseSchema>;

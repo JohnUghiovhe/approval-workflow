@@ -96,6 +96,8 @@ requirements.
 | `RATE_LIMIT_MAX`       | Max requests allowed per client IP within the window                                 | `100`                                            |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window length                                                             | `900000` (15 min)                                |
 | `REQUEST_TIMEOUT_MS`   | Time after which an in-flight request responds 408                                   | `30000` (30 s)                                   |
+| +                      | `JSON_BODY_LIMIT`                                                                    | Maximum accepted JSON body size                  | `100kb` |
+| +                      | `TRUST_PROXY`                                                                        | Number of trusted reverse-proxy hops             | `0`     |
 
 ## Rate Limiting and Timeouts
 
@@ -104,9 +106,12 @@ Every request is subject to a per-IP rate limit (`RATE_LIMIT_MAX` requests per
 limit is exceeded the API responds `429` with `code: TOO_MANY_REQUESTS`; when a
 request exceeds the timeout it responds `408` with `code: REQUEST_TIMEOUT`.
 Both follow the standard error envelope and are logged at warn level with the
-correlation ID. The `/health` endpoints are always excluded so orchestration
-probes are never throttled or cut off, and a timed-out request never aborts an
-in-flight database transaction.
+correlation ID. The 408 envelope is only returned while the response headers
+have not yet been sent; if the route has already started responding, the
+timeout ends the response instead, so the client may receive the status already
+sent by the route with a truncated body. The `/health` endpoints are always
+excluded so orchestration probes are never throttled or cut off, and a timed-out
+request never aborts an in-flight database transaction.
 
 ## Request Correlation IDs
 
@@ -161,10 +166,10 @@ the access log:
 
 | Endpoint            | Purpose                                                 | Response                                   |
 | ------------------- | ------------------------------------------------------- | ------------------------------------------ |
-| `GET /health`       | Liveness: the process answers, so it always returns 200 | 200 with the health report                 |
+| `GET /health`       | Liveness: the process answers, so it always returns 200 | 200 with the app-only liveness report      |
 | `GET /health/ready` | Readiness: reports the database state                   | 200 when the DB is reachable, 503 when not |
 
-The health report follows the standard envelope:
+The readiness report follows the standard envelope:
 
 ```json
 {
@@ -180,8 +185,12 @@ The health report follows the standard envelope:
 }
 ```
 
-`status` is `healthy` when the database responds to `SELECT 1` and `degraded`
-otherwise. The report never leaks the database URL or other connection details.
+`GET /health/ready` reports `status` as `healthy` when the database responds to
+`SELECT 1` and `degraded` otherwise. The report never leaks the database URL or
+other connection details. `GET /health` is the liveness probe: it always
+returns 200 with an app-only report (`status: "ok"`, no `checks`) and never
+touches the database, so orchestration can restart a hung process even when the
+database is unreachable.
 
 ## Operations & Logging
 
