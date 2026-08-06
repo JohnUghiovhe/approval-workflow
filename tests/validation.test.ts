@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import express, { type Application, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { ERROR_CODES } from '../src/shared/constants/error-codes.ts';
 import { HttpStatus } from '../src/shared/constants/http-status.ts';
 import { SYS_MSG } from '../src/shared/constants/system.messages.ts';
 import { NotFoundError } from '../src/shared/errors/not-found-error.ts';
@@ -53,6 +54,7 @@ describe('validation layer', () => {
     expect(res.body).toEqual({
       statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
       message: SYS_MSG.VALIDATION_ERROR,
+      code: ERROR_CODES.VALIDATION_ERROR,
       errors: [
         { field: 'title', message: 'Too small: expected string to have >=3 characters' },
         { field: 'department', message: 'Too small: expected string to have >=1 characters' },

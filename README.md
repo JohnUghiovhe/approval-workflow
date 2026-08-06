@@ -103,6 +103,40 @@ UUID is generated otherwise. The same value is echoed back on the
 as `correlationId` on access-log and error-handler log lines so a single
 request can be traced end to end.
 
+## Error Codes
+
+Errors use the shared envelope with a stable `code` that clients can branch on:
+
+```json
+{
+  "statusCode": 409,
+  "message": "Conflict with the current state of the resource",
+  "code": "CONFLICT",
+  "requestId": "3f0a3b1e-...",
+  "errors": { "request_id": "8c1a..." }
+}
+```
+
+`requestId` and `errors` are present only when relevant. The registry lives in
+`src/shared/constants/error-codes.ts`:
+
+| Code               | Meaning                                 | HTTP status |
+| ------------------ | --------------------------------------- | ----------- |
+| `BAD_REQUEST`      | Malformed request or invalid transition | 400         |
+| `UNAUTHORIZED`     | Missing/invalid authorization           | 401         |
+| `NOT_FOUND`        | Resource not found                      | 404         |
+| `CONFLICT`         | State conflict or duplicate decision    | 409         |
+| `VALIDATION_ERROR` | Zod validation failed                   | 422         |
+| `DB_ERROR`         | Unmapped database failure               | 500         |
+| `INTERNAL`         | Unhandled internal error                | 500         |
+
+Prisma constraint failures are folded into the same structure: unique violation
+(`P2002`) becomes 409 `CONFLICT`, missing record (`P2025`) becomes 404
+`NOT_FOUND`, foreign key violation (`P2003`) becomes 422 `VALIDATION_ERROR`, and
+any other Prisma error becomes a generic 500 `DB_ERROR`. Internal errors always
+respond with `SYS_MSG.INTERNAL_SERVER_ERROR`; raw Prisma messages, SQL, and
+stack traces are logged but never sent to the client.
+
 ## Health Endpoints
 
 Operational probes live at the top level (outside `/api`) and are excluded from
