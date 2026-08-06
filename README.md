@@ -87,11 +87,21 @@ requirements.
 
 ## Environment Variables
 
-| Variable       | Description                            | Default                                          |
-| -------------- | -------------------------------------- | ------------------------------------------------ |
-| `NODE_ENV`     | `development`, `test`, or `production` | `development`                                    |
-| `PORT`         | HTTP port the server binds to          | `3000`                                           |
-| `DATABASE_URL` | PostgreSQL connection string           | required (throwaway value under `NODE_ENV=test`) |
+| Variable       | Description                                                                          | Default                                          |
+| -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `NODE_ENV`     | `development`, `test`, or `production`                                               | `development`                                    |
+| `PORT`         | HTTP port the server binds to                                                        | `3000`                                           |
+| `DATABASE_URL` | PostgreSQL connection string                                                         | required (throwaway value under `NODE_ENV=test`) |
+| `LOG_LEVEL`    | Pino level: `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` | `info`                                           |
+
+## Request Correlation IDs
+
+Every request is assigned a correlation ID. The `x-request-id` request header
+is honored when present (for example when seeded by an upstream gateway) and a
+UUID is generated otherwise. The same value is echoed back on the
+`x-request-id` response header, carried on `req.id` in middleware, and written
+as `correlationId` on access-log and error-handler log lines so a single
+request can be traced end to end.
 
 ## Health Endpoints
 

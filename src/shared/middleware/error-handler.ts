@@ -12,6 +12,13 @@ function getRequestId(req: Parameters<ErrorRequestHandler>[1]): string | undefin
   return typeof paramId === 'string' && paramId.length > 0 ? paramId : undefined;
 }
 
+// Derive the request correlation id set by the pino-http middleware (genReqId)
+// so error lines can be traced alongside the access log for the same request.
+function getCorrelationId(req: Parameters<ErrorRequestHandler>[1]): string | undefined {
+  const id = req.id;
+  return typeof id === 'string' && id.length > 0 ? id : undefined;
+}
+
 // Central error middleware. Anything not an AppError becomes a generic 500
 // so internal details never leak to clients.
 export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
@@ -23,13 +30,20 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   const statusCode = err instanceof AppError ? err.statusCode : HttpStatus.INTERNAL_SERVER_ERROR;
   const message = err instanceof AppError ? err.message : SYS_MSG.INTERNAL_SERVER_ERROR;
   const requestId = getRequestId(req);
+  const correlationId = getCorrelationId(req);
 
   // 5xx are real failures and need an error-level trace for operators; 4xx
   // are client mistakes and only warrant a warning to avoid noisy stacks.
   if (statusCode >= 500) {
-    logger.error({ err, method: req.method, url: req.url, statusCode, requestId }, message);
+    logger.error(
+      { err, method: req.method, url: req.url, statusCode, requestId, correlationId },
+      message,
+    );
   } else {
-    logger.warn({ err, method: req.method, url: req.url, statusCode, requestId }, message);
+    logger.warn(
+      { err, method: req.method, url: req.url, statusCode, requestId, correlationId },
+      message,
+    );
   }
 
   const body: ApiErrorResponse = { statusCode, message };
