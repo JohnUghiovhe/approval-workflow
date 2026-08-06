@@ -79,20 +79,331 @@ http://localhost:3000/api/docs/openapi.json, and its source of truth lives in
 `info.version` from `package.json` and sets `servers` from the configured port,
 so the docs always describe the deployment actually serving them.
 
+## API Walkthrough
+
+This end-to-end walkthrough drives a request through its whole lifecycle with
+`curl` against `npm run dev` (http://localhost:3000): create, list, view,
+approve, comment, and activities. Reviewers are mocked, so the bearer token is
+a reviewer UUID from the seed data - no passwords or JWTs involved.
+
+The examples assume bash or zsh on macOS/Linux, or PowerShell 7+ on Windows. On
+Windows PowerShell 5.1 call `curl.exe` instead of `curl`; the JSON bodies below
+use single quotes, which both shells pass through literally.
+
+### 1. Grab a reviewer token
+
+Authentication is mocked: send a reviewer's UUID as a bearer token. Open
+Prisma Studio and copy the `id` of any seeded reviewer:
+
+```sh
+npm run db:studio
+```
+
+Export it for the reviewer-only calls:
+
+```sh
+# bash / zsh
+export REVIEWER="<reviewer-uuid>"
+```
+
+```powershell
+# Windows PowerShell 7+
+$env:REVIEWER = "<reviewer-uuid>"
+```
+
+### 2. Create a request
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Laptop upgrade for design team","description":"Replace aging laptops.","department":"Engineering","requesterName":"Olu Smith"}'
+```
+
+Response `201`:
+
+```json
+{
+  "statusCode": 201,
+  "message": "Request created successfully",
+  "data": {
+    "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
+    "title": "Laptop upgrade for design team",
+    "description": "Replace aging laptops.",
+    "department": "Engineering",
+    "requesterName": "Olu Smith",
+    "status": "SUBMITTED",
+    "createdAt": "2026-08-06T09:00:00.000Z",
+    "updatedAt": "2026-08-06T09:00:00.000Z",
+    "comments": [],
+    "activities": []
+  }
+}
+```
+
+A request starts in `SUBMITTED`. Save its `data.id` for the next steps.
+
+### 3. List requests
+
+```sh
+curl -s http://localhost:3000/api/requests
+```
+
+Response `200`:
+
+```json
+{
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": {
+    "data": [
+      {
+        "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
+        "title": "Laptop upgrade for design team",
+        "department": "Engineering",
+        "requesterName": "Olu Smith",
+        "status": "SUBMITTED",
+        "createdAt": "2026-08-06T09:00:00.000Z",
+        "updatedAt": "2026-08-06T09:00:00.000Z",
+        "comments": [],
+        "activities": []
+      }
+    ],
+    "page": 1,
+    "pageSize": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Pagination and a status filter combine in the query string:
+
+```sh
+curl -s "http://localhost:3000/api/requests?page=1&pageSize=5&status=SUBMITTED"
+```
+
+`page` starts at 1, `pageSize` maxes out at 100, and `status` accepts
+`SUBMITTED`, `IN_REVIEW`, `APPROVED`, `REJECTED`, or `RETURNED`.
+
+### 4. View one request
+
+```sh
+curl -s http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202
+```
+
+Response `200` includes the full activity history:
+
+```json
+{
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": {
+    "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
+    "title": "Laptop upgrade for design team",
+    "description": "Replace aging laptops.",
+    "department": "Engineering",
+    "requesterName": "Olu Smith",
+    "status": "SUBMITTED",
+    "createdAt": "2026-08-06T09:00:00.000Z",
+    "updatedAt": "2026-08-06T09:00:00.000Z",
+    "comments": [],
+    "activities": [
+      {
+        "id": "f00d90ac-5f6e-4d1f-8f90-2a3b4c5d6e7f",
+        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
+        "reviewerId": null,
+        "action": "SUBMISSION",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "note": "Olu Smith",
+        "createdAt": "2026-08-06T09:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### 5. Approve the request
+
+Reviewer-only. Send the reviewer UUID from step 1 as the bearer token:
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
+  -H "Authorization: Bearer $REVIEWER"
+```
+
+Response `200`:
+
+```json
+{
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": {
+    "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
+    "title": "Laptop upgrade for design team",
+    "description": "Replace aging laptops.",
+    "department": "Engineering",
+    "requesterName": "Olu Smith",
+    "status": "APPROVED",
+    "createdAt": "2026-08-06T09:00:00.000Z",
+    "updatedAt": "2026-08-06T09:00:05.000Z",
+    "comments": [],
+    "activities": [
+      {
+        "id": "f00d90ac-5f6e-4d1f-8f90-2a3b4c5d6e7f",
+        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
+        "reviewerId": null,
+        "action": "SUBMISSION",
+        "fromStatus": null,
+        "toStatus": "SUBMITTED",
+        "note": "Olu Smith",
+        "createdAt": "2026-08-06T09:00:00.000Z"
+      },
+      {
+        "id": "7f88f2ce-f138-4a99-a055-d3cc2eb6101c",
+        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
+        "reviewerId": "d5321303-99dc-469d-90ad-f06b4e56a6b9",
+        "action": "APPROVAL",
+        "fromStatus": "SUBMITTED",
+        "toStatus": "APPROVED",
+        "note": null,
+        "createdAt": "2026-08-06T09:00:05.000Z"
+      }
+    ],
+    "decision": "approve",
+    "reviewerId": "d5321303-99dc-469d-90ad-f06b4e56a6b9",
+    "decidedAt": "2026-08-06T09:00:05.000Z"
+  }
+}
+```
+
+`reject` and `return` work identically; `return` includes a mandatory
+`comment` body so the requester knows what to fix.
+
+### 6. Leave a comment
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/comments \
+  -H "Authorization: Bearer $REVIEWER" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"Looks good, approved."}'
+```
+
+Response `201` echoes the created comment with the reviewer's id and
+timestamp.
+
+### 7. Inspect the activity history
+
+```sh
+curl -s http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/activities
+```
+
+Response `200` lists every action chronologically (`SUBMISSION`, then
+`APPROVAL`), each with the acting reviewer, the from/to statuses, and a note.
+The history is append-only: it is never rewritten or deleted.
+
+### Error cases worth knowing
+
+A missing or invalid bearer token on a reviewer-only route returns `401`:
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve
+```
+
+```json
+{
+  "statusCode": 401,
+  "message": "Missing or invalid authorization header",
+  "code": "UNAUTHORIZED",
+  "requestId": "9c792ae8-0d06-4d11-af1e-8d8ca427c715"
+}
+```
+
+An unknown request id returns `404`:
+
+```sh
+curl -s http://localhost:3000/api/requests/00000000-0000-0000-0000-000000000000
+```
+
+```json
+{
+  "statusCode": 404,
+  "message": "Request not found",
+  "code": "NOT_FOUND",
+  "requestId": "bd7b7b5f-0fdf-4284-aa41-845a856319e5",
+  "errors": { "request_id": "00000000-0000-0000-0000-000000000000" }
+}
+```
+
+An invalid payload returns `422` with one entry per offending field:
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests \
+  -H "Content-Type: application/json" \
+  -d '{"title":""}'
+```
+
+```json
+{
+  "statusCode": 422,
+  "message": "Validation failed",
+  "code": "VALIDATION_ERROR",
+  "requestId": "ac7f71d6-3c7a-4ea4-89d4-6d14f89ba504",
+  "errors": [
+    { "field": "title", "message": "Too small: expected string to have >=1 characters" },
+    { "field": "department", "message": "Invalid input: expected string, received undefined" },
+    { "field": "requesterName", "message": "Invalid input: expected string, received undefined" }
+  ]
+}
+```
+
+Decisions that violate the transition table return `400` (`BAD_REQUEST`, see
+[Error Codes](#error-codes)). Duplicate decisions are only reachable when two
+requests race: fire several approvals at once and exactly one wins with `200`
+while the rest get `409` (`CONFLICT`, "A decision has already been recorded for
+this request"):
+
+```sh
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
+  -H "Authorization: Bearer $REVIEWER" &
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
+  -H "Authorization: Bearer $REVIEWER" &
+curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
+  -H "Authorization: Bearer $REVIEWER" &
+wait
+```
+
+```json
+{
+  "statusCode": 409,
+  "message": "A decision has already been recorded for this request",
+  "code": "CONFLICT",
+  "requestId": "a5bdf5fc-79f6-4233-a611-c070c51ed18f",
+  "errors": { "request_id": "050de558-2ec7-401f-8bc3-911ebecb6202", "decision": "approve" }
+}
+```
+
+The `408` timeout status is behaviorally covered in [Rate Limiting and
+Timeouts](#rate-limiting-and-timeouts); it fires only when a route exceeds
+`REQUEST_TIMEOUT_MS` (30 s by default), which is impractical to trigger with a
+plain `curl` call.
+
 ## Scripts
 
-| Command                | Purpose                                                     |
-| ---------------------- | ----------------------------------------------------------- |
-| `npm run dev`          | Start with hot reload (tsx watch)                           |
-| `npm run build`        | Compile TypeScript to `dist/`                               |
-| `npm start`            | Run the compiled server                                     |
-| `npm run typecheck`    | Typecheck `src/`, `tests/`, and root config files (no emit) |
-| `npm run lint`         | ESLint over `src/`, `tests/`, and root config files         |
-| `npm run format:check` | Verify Prettier formatting                                  |
-| `npm test`             | Run Vitest once                                             |
-| `npm run db:migrate`   | Create/apply a Prisma migration (use `-- --name <name>`)    |
-| `npm run db:seed`      | Seed reviewers and requests (idempotent)                    |
-| `npm run db:studio`    | Open Prisma Studio                                          |
+| Command                 | Purpose                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| `npm run dev`           | Start with hot reload (tsx watch)                           |
+| `npm run build`         | Compile TypeScript to `dist/`                               |
+| `npm start`             | Run the compiled server                                     |
+| `npm run typecheck`     | Typecheck `src/`, `tests/`, and root config files (no emit) |
+| `npm run lint`          | ESLint over `src/`, `tests/`, and root config files         |
+| `npm run format:check`  | Verify Prettier formatting                                  |
+| `npm test`              | Run Vitest once                                             |
+| `npm run test:watch`    | Run Vitest in watch mode                                    |
+| `npm run test:coverage` | Run Vitest with V8 coverage and ≥80% thresholds             |
+| `npm run db:migrate`    | Create/apply a Prisma migration (use `-- --name <name>`)    |
+| `npm run db:seed`       | Seed reviewers and requests (idempotent)                    |
+| `npm run db:studio`     | Open Prisma Studio                                          |
 
 ## Environment Variables
 
@@ -279,6 +590,69 @@ liveness versus readiness.
 | 429 `TOO_MANY_REQUESTS`                | Client exceeded `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW_MS` | Raise the env limits if legitimate; the `RateLimit-*` response headers show the quota and remaining count. Health endpoints are never throttled.                             |
 | 408 `REQUEST_TIMEOUT`                  | Request exceeded `REQUEST_TIMEOUT_MS`                          | A slow query or a blocked route handler; the warn line logs method, url, and requestId. The timeout never aborts an in-flight DB transaction.                                |
 | 500 `INTERNAL` or `DB_ERROR`           | Unhandled exception or unmapped database failure               | The error-level line logs the original error and full stack. The response body only carries the safe message, never raw Prisma or SQL details.                               |
+
+## Testing Guide
+
+Vitest runs the suite. DB-backed tests hit the real PostgreSQL test instance
+(`postgres_test`, port 5434) through Prisma; they detect when it is unreachable
+and skip themselves with a note rather than fail, so unit-only work never
+breaks.
+
+```sh
+npm test                   # run once
+npm run test:watch         # re-run on change
+npm run test:coverage      # run once with V8 coverage
+```
+
+Coverage is collected over `src/` and thresholds are enforced (all ≥80%:
+lines, functions, branches, statements), so the run fails when coverage drops
+below the bar. The coverage report also prints a per-file breakdown.
+
+### Layout
+
+- Unit tests live next to their module in
+  `src/modules/<module>/tests/*.test.ts`. They run in isolation with mocked
+  repositories and assert controller/service behavior, validation, and state
+  transitions.
+- Integration tests live in `tests/*.integration.test.ts`. They run against
+  the real server (Supertest) and database, use a `globalSetup` that creates
+  the test database and runs migrations, and reset state between files.
+- `tests/helpers/` holds shared test utilities:
+  - `factories.ts` - `createReviewer()` and `createRequest()` seed rows
+    quickly with sensible defaults.
+  - `assertions.ts` - `expectErrorResponse()` asserts the exact error
+    envelope (status code, `code`, and message).
+  - `database.ts` - `isDatabaseAvailable()` backs the auto-skip behavior.
+  - `cleanup.ts` - `resetDatabase()` truncates tables between suites.
+
+### What is covered
+
+- Request lifecycle: create, list with pagination and status filters, view,
+  and the 404 path.
+- Decisions: approve, reject, and return, including the workflow transition
+  table, duplicate-decision conflicts, and the reviewer authorization check.
+- Comments and activities, including the append-only activity history.
+- Health endpoints (liveness versus readiness) and the rate-limiter and
+  timeout middleware.
+- OpenAPI contract validation: the integration suite in
+  `tests/contract.integration.test.ts` starts the real server, exercises each
+  endpoint, and validates every response against its schema in
+  `docs/openapi.yaml` using `@apidevtools/swagger-parser` plus Ajv. It covers
+  `RequestResponse`, `ListRequestsResponse`, `DecisionResponse`,
+  `CommentResponse`, `ActivitiesResponse`, `LivenessResponse`, and
+  `HealthResponse`, so any change that drifts the live API from the spec
+  fails the suite.
+
+### Before you push
+
+```sh
+npm run lint
+npm run format:check
+npm run typecheck
+npm test
+```
+
+Husky runs the same checks on commit through lint-staged.
 
 ## Project Structure
 
