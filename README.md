@@ -87,12 +87,26 @@ requirements.
 
 ## Environment Variables
 
-| Variable       | Description                                                                          | Default                                          |
-| -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `NODE_ENV`     | `development`, `test`, or `production`                                               | `development`                                    |
-| `PORT`         | HTTP port the server binds to                                                        | `3000`                                           |
-| `DATABASE_URL` | PostgreSQL connection string                                                         | required (throwaway value under `NODE_ENV=test`) |
-| `LOG_LEVEL`    | Pino level: `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` | `info`                                           |
+| Variable               | Description                                                                          | Default                                          |
+| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `NODE_ENV`             | `development`, `test`, or `production`                                               | `development`                                    |
+| `PORT`                 | HTTP port the server binds to                                                        | `3000`                                           |
+| `DATABASE_URL`         | PostgreSQL connection string                                                         | required (throwaway value under `NODE_ENV=test`) |
+| `LOG_LEVEL`            | Pino level: `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` | `info`                                           |
+| `RATE_LIMIT_MAX`       | Max requests allowed per client IP within the window                                 | `100`                                            |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window length                                                             | `900000` (15 min)                                |
+| `REQUEST_TIMEOUT_MS`   | Time after which an in-flight request responds 408                                   | `30000` (30 s)                                   |
+
+## Rate Limiting and Timeouts
+
+Every request is subject to a per-IP rate limit (`RATE_LIMIT_MAX` requests per
+`RATE_LIMIT_WINDOW_MS`) and a request timeout (`REQUEST_TIMEOUT_MS`). When the
+limit is exceeded the API responds `429` with `code: TOO_MANY_REQUESTS`; when a
+request exceeds the timeout it responds `408` with `code: REQUEST_TIMEOUT`.
+Both follow the standard error envelope and are logged at warn level with the
+correlation ID. The `/health` endpoints are always excluded so orchestration
+probes are never throttled or cut off, and a timed-out request never aborts an
+in-flight database transaction.
 
 ## Request Correlation IDs
 
@@ -120,15 +134,17 @@ Errors use the shared envelope with a stable `code` that clients can branch on:
 `requestId` and `errors` are present only when relevant. The registry lives in
 `src/shared/constants/error-codes.ts`:
 
-| Code               | Meaning                                 | HTTP status |
-| ------------------ | --------------------------------------- | ----------- |
-| `BAD_REQUEST`      | Malformed request or invalid transition | 400         |
-| `UNAUTHORIZED`     | Missing/invalid authorization           | 401         |
-| `NOT_FOUND`        | Resource not found                      | 404         |
-| `CONFLICT`         | State conflict or duplicate decision    | 409         |
-| `VALIDATION_ERROR` | Zod validation failed                   | 422         |
-| `DB_ERROR`         | Unmapped database failure               | 500         |
-| `INTERNAL`         | Unhandled internal error                | 500         |
+| Code                | Meaning                                 | HTTP status |
+| ------------------- | --------------------------------------- | ----------- |
+| `BAD_REQUEST`       | Malformed request or invalid transition | 400         |
+| `UNAUTHORIZED`      | Missing/invalid authorization           | 401         |
+| `NOT_FOUND`         | Resource not found                      | 404         |
+| `CONFLICT`          | State conflict or duplicate decision    | 409         |
+| `VALIDATION_ERROR`  | Zod validation failed                   | 422         |
+| `TOO_MANY_REQUESTS` | Client exceeded the rate limit          | 429         |
+| `REQUEST_TIMEOUT`   | Request exceeded the timeout            | 408         |
+| `DB_ERROR`          | Unmapped database failure               | 500         |
+| `INTERNAL`          | Unhandled internal error                | 500         |
 
 Prisma constraint failures are folded into the same structure: unique violation
 (`P2002`) becomes 409 `CONFLICT`, missing record (`P2025`) becomes 404
@@ -179,7 +195,7 @@ src/
 └── shared/
     ├── constants/          HttpStatus and SYS_MSG constants
     ├── errors/             AppError base + typed subclasses, Zod formatter
-    ├── middleware/         validate, error handler, 404 handler
+    ├── middleware/         validate, rate limiter, timeout, error handler, 404 handler
     ├── types/              Shared API response types
     ├── utils/              Logger, response helpers, async wrapper
     └── validators/         Shared Zod schemas (pagination)
