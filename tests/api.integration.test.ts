@@ -67,6 +67,7 @@ describe('REST API wiring', () => {
     expect(res.status).toBe(HttpStatus.NOT_FOUND);
     expect(res.body.statusCode).toBe(HttpStatus.NOT_FOUND);
     expect(res.body.message).toBe(SYS_MSG.RESOURCE_NOT_FOUND);
+    expect(res.body.errors).toEqual({ path: '/api/nope' });
   });
 
   it('rejects a decision without a bearer token with 401', async () => {

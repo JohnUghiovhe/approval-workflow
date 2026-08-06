@@ -1,6 +1,10 @@
 import { activity_action, request_status } from '../../generated/prisma/client.ts';
+import { prisma } from '../../database/index.ts';
+import { SYS_MSG } from '../../shared/constants/system.messages.ts';
+import { NotFoundError } from '../../shared/errors/not-found-error.ts';
+import { findById as findRequestById } from '../request/request.repository.ts';
 import * as activityRepository from './activity.repository.ts';
-import type { DbClient, DecisionAction } from './activity.types.ts';
+import type { ActivityDto, DbClient, DecisionAction } from './activity.types.ts';
 
 const DECISION_TO_ACTIVITY_ACTION: Record<DecisionAction, activity_action> = {
   approve: activity_action.APPROVAL,
@@ -64,10 +68,35 @@ export function listByRequestId(client: DbClient, requestId: string) {
   return activityRepository.listByRequestId(client, requestId);
 }
 
+function toActivityDto(row: Awaited<ReturnType<typeof listByRequestId>>[number]): ActivityDto {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    reviewerId: row.reviewer_id,
+    action: row.action,
+    fromStatus: row.from_status,
+    toStatus: row.to_status,
+    note: row.note,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+// The public history endpoint: the request must exist, then return its
+// append-only activity rows in creation order.
+export async function getActivitiesByRequestId(requestId: string): Promise<ActivityDto[]> {
+  const exists = await findRequestById(prisma, requestId);
+  if (!exists) {
+    throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
+  }
+  const rows = await activityRepository.listByRequestId(prisma, requestId);
+  return rows.map(toActivityDto);
+}
+
 export const activityService = {
   recordSubmission,
   recordDecision,
   recordResubmission,
   recordComment,
   listByRequestId,
+  getActivitiesByRequestId,
 };

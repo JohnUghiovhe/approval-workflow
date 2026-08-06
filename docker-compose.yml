@@ -1,4 +1,6 @@
-# Local PostgreSQL service backing the Prisma data layer.
+# Local PostgreSQL services backing the Prisma data layer. The dev service is
+# used by the app and the seed; the test service is isolated so DB-backed test
+# suites never touch development data (rule 16).
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,5 +20,24 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: approval-workflow-postgres-test
+    restart: unless-stopped
+    ports:
+      - '5434:5432'
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: approval_workflow_test
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U test -d approval_workflow_test']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
+  postgres_test_data:

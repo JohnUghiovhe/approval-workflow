@@ -97,7 +97,7 @@ describe('RequestService', () => {
 
   it('lists requests with pagination and camelCase items', async () => {
     mocks.findMany.mockResolvedValue([makeRequestRow()]);
-    mocks.count.mockResolvedValue(1);
+    mocks.count.mockResolvedValue(7);
 
     const result = await service.listRequests({ page: 2, pageSize: 5 });
 
@@ -117,7 +117,8 @@ describe('RequestService', () => {
       ],
       page: 2,
       pageSize: 5,
-      total: 1,
+      total: 7,
+      totalPages: 2,
     });
   });
 

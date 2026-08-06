@@ -40,6 +40,14 @@ requirements.
    docker compose up -d postgres
    ```
 
+   The dev database is the one the app and seed use. A second service,
+   `postgres_test` (port 5433), backs the DB-backed integration suites; they
+   skip themselves when it is not running. Start both with:
+
+   ```sh
+   docker compose up -d postgres postgres_test
+   ```
+
 3. Create the environment file:
 
    ```sh
@@ -93,8 +101,8 @@ src/
 ├── server.ts               Boot + graceful shutdown
 ├── config/env.ts           Zod-validated environment loader
 ├── database/               Prisma schema, migrations, seed, client singleton
-├── modules/                Feature modules (request, reviewer, activity, health)
-├── routes/                 Route aggregation (empty until Phase 2)
+├── modules/                Feature modules (request, decision, comment, reviewer, activity, health)
+├── routes/                 Route aggregation (apiRouter under /api)
 └── shared/
     ├── constants/          HttpStatus and SYS_MSG constants
     ├── errors/             AppError base + typed subclasses, Zod formatter

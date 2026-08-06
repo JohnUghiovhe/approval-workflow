@@ -35,12 +35,21 @@ export class DecisionService {
     reviewerId: string,
     notes?: string,
   ): Promise<DecisionDto> {
+    // Cheap existence check before opening the transaction.
     const current = await decisionRepository.findById(prisma, requestId);
     if (!current) {
       throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
     }
 
     const targetStatus = ACTION_TO_TARGET_STATUS[action];
+
+    // The transition must be validated and guarded against the status read
+    // inside the transaction, never a snapshot taken before it. Otherwise a
+    // concurrent decision can move the request between the read and the update
+    // and this call would either commit from a stale state or mislabel the
+    // error. The pre-transaction snapshot distinguishes a sequential invalid
+    // transition (already decided before this call: 400) from a concurrent
+    // duplicate decision (moved while this call was in flight: 409).
     if (!this.validateTransition(current.status, action)) {
       throw new BadRequestError(SYS_MSG.INVALID_STATE_TRANSITION, {
         request_id: requestId,
@@ -49,14 +58,28 @@ export class DecisionService {
       });
     }
 
-    // Update, record the activity and re-read in one transaction. The status
-    // guard makes the update a no-op if a concurrent decision moved the request
-    // first, which surfaces as a duplicate decision.
     const updated = await prisma.$transaction(async (tx) => {
+      const fresh = await decisionRepository.findById(tx, requestId);
+      if (!fresh) {
+        throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
+      }
+
+      // The snapshot said SUBMITTED but the fresh read no longer does, so a
+      // concurrent decision won. That is a duplicate decision, not an invalid
+      // transition, and the guarded update below would be a no-op anyway.
+      if (fresh.status !== current.status) {
+        throw new ConflictError(SYS_MSG.DUPLICATE_DECISION, {
+          request_id: requestId,
+          decision: action,
+        });
+      }
+
+      // The status guard makes the update a no-op if a concurrent decision moved
+      // the request after the fresh read, which surfaces as a duplicate decision.
       const affected = await decisionRepository.updateStatusGuarded(
         tx,
         requestId,
-        current.status,
+        fresh.status,
         targetStatus,
       );
       if (affected === 0) {
@@ -70,7 +93,7 @@ export class DecisionService {
         requestId,
         reviewerId,
         action,
-        current.status,
+        fresh.status,
         targetStatus,
         notes,
       );
@@ -80,7 +103,12 @@ export class DecisionService {
     if (!updated) {
       throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
     }
-    return toRequestDto(updated);
+    return {
+      ...toRequestDto(updated),
+      decision: action,
+      reviewerId,
+      decidedAt: updated.updated_at.toISOString(),
+    };
   }
 
   async resubmit(requestId: string, requesterName: string): Promise<DecisionDto> {
@@ -89,6 +117,10 @@ export class DecisionService {
       throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
     }
 
+    // Same reasoning as decide: re-read and validate inside the transaction so
+    // the RETURNED check cannot race with a concurrent decision. A snapshot
+    // that is not RETURNED is a sequential invalid transition (400); a status
+    // that changes while this call is in flight is a concurrent duplicate (409).
     if (current.status !== request_status.RETURNED) {
       throw new BadRequestError(SYS_MSG.INVALID_STATE_TRANSITION, {
         request_id: requestId,
@@ -98,6 +130,18 @@ export class DecisionService {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      const fresh = await decisionRepository.findById(tx, requestId);
+      if (!fresh) {
+        throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
+      }
+
+      if (fresh.status !== request_status.RETURNED) {
+        throw new ConflictError(SYS_MSG.DUPLICATE_DECISION, {
+          request_id: requestId,
+          decision: 'resubmit',
+        });
+      }
+
       const affected = await decisionRepository.updateStatusGuarded(
         tx,
         requestId,
@@ -117,6 +161,11 @@ export class DecisionService {
     if (!updated) {
       throw new NotFoundError(SYS_MSG.REQUEST_NOT_FOUND, { request_id: requestId });
     }
-    return toRequestDto(updated);
+    return {
+      ...toRequestDto(updated),
+      decision: 'resubmit',
+      reviewerId: null,
+      decidedAt: updated.updated_at.toISOString(),
+    };
   }
 }

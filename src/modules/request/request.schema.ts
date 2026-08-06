@@ -17,5 +17,12 @@ export const listRequestsQuerySchema = paginationQuerySchema.extend({
   status: z.enum(requestStatusValues as [request_status, ...request_status[]]).optional(),
 });
 
+// Shared param schema for every /requests/:id route (view, decision, comment,
+// activity). UUID is the storage format, so anything else is a validation
+// error instead of a DB miss.
+export const requestIdParamsSchema = z.object({
+  id: z.string().uuid(),
+});
+
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 export type ListRequestsQuery = z.infer<typeof listRequestsQuerySchema>;

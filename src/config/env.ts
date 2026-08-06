@@ -12,9 +12,10 @@ const envSchema = z.object({
 
 // Provide a throwaway DATABASE_URL under NODE_ENV=test so unit tests that
 // never touch the database can run in CI without a local .env. Every other
-// environment still fails fast when the URL is missing.
+// environment still fails fast when the URL is missing. The test database is
+// provisioned by the `postgres_test` service in docker-compose.yml.
 const testDatabaseUrl =
-  'postgresql://test:test@localhost:5432/approval_workflow_test?schema=public';
+  'postgresql://test:test@localhost:5434/approval_workflow_test?schema=public';
 const inputEnv = {
   ...process.env,
   DATABASE_URL:

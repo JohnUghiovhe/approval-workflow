@@ -1,6 +1,8 @@
 ﻿import prisma from './index.ts';
+import { activity_action, request_status } from '../generated/prisma/client.ts';
 import { SYS_MSG } from '../shared/constants/system.messages.ts';
 import { logger } from '../shared/utils/logger.ts';
+import * as activityRepository from '../modules/activity/activity.repository.ts';
 
 interface ReviewerSeed {
   name: string;
@@ -76,13 +78,91 @@ async function seedReviewers(): Promise<void> {
   }
 }
 
+// Build the append-only trail a request should have based on its seeded
+// status: every request starts with a SUBMISSION, then the matching decision
+// activity. Timestamps are staggered so the trail is chronologically stable.
+function buildActivityChain(
+  requestId: string,
+  status: RequestSeed['status'],
+  reviewerId: string,
+): Parameters<typeof activityRepository.createMany>[1] {
+  const base = new Date(Date.now());
+  const chain: Parameters<typeof activityRepository.createMany>[1] = [
+    {
+      request_id: requestId,
+      action: activity_action.SUBMISSION,
+      to_status: request_status.SUBMITTED,
+      note: 'Olu Smith',
+      created_at: new Date(base.getTime() - 2 * 60_000),
+    },
+  ];
+
+  if (status === 'APPROVED') {
+    chain.push({
+      request_id: requestId,
+      reviewer_id: reviewerId,
+      action: activity_action.APPROVAL,
+      from_status: request_status.SUBMITTED,
+      to_status: request_status.APPROVED,
+      created_at: new Date(base.getTime() - 60_000),
+    });
+  } else if (status === 'REJECTED') {
+    chain.push({
+      request_id: requestId,
+      reviewer_id: reviewerId,
+      action: activity_action.REJECTION,
+      from_status: request_status.SUBMITTED,
+      to_status: request_status.REJECTED,
+      created_at: new Date(base.getTime() - 60_000),
+    });
+  } else if (status === 'RETURNED') {
+    chain.push({
+      request_id: requestId,
+      reviewer_id: reviewerId,
+      action: activity_action.RETURN,
+      from_status: request_status.SUBMITTED,
+      to_status: request_status.RETURNED,
+      created_at: new Date(base.getTime() - 60_000),
+    });
+  }
+  return chain;
+}
+
+// Title is not a unique column, so match the seed entry with a find + create
+// or update instead of upsert. New seed entries land on existing databases;
+// re-runs keep requests stable and only add missing audit history.
 async function seedRequests(): Promise<void> {
-  const existingCount = await prisma.request.count();
-  if (existingCount > 0) {
-    logger.info(SYS_MSG.SEED_SKIPPED);
+  const reviewer = await prisma.reviewer.findFirst();
+  const reviewerId = reviewer?.id ?? '';
+  if (!reviewerId) {
+    logger.warn('No reviewer seeded yet; skipping request seeding');
     return;
   }
-  await prisma.request.createMany({ data: REQUEST_SEEDS });
+
+  for (const requestSeed of REQUEST_SEEDS) {
+    const existingRequest = await prisma.request.findFirst({ where: { title: requestSeed.title } });
+    const row = existingRequest ?? (await prisma.request.create({ data: requestSeed }));
+
+    if (existingRequest) {
+      await prisma.request.update({
+        where: { id: row.id },
+        data: {
+          description: requestSeed.description,
+          department: requestSeed.department,
+          requester_name: requestSeed.requester_name,
+          status: requestSeed.status,
+        },
+      });
+    }
+
+    const existing = await prisma.activity.count({ where: { request_id: row.id } });
+    if (existing === 0) {
+      await activityRepository.createMany(
+        prisma,
+        buildActivityChain(row.id, requestSeed.status, reviewerId),
+      );
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -91,7 +171,10 @@ async function main(): Promise<void> {
 
   const reviewerCount = await prisma.reviewer.count();
   const requestCount = await prisma.request.count();
-  logger.info(`${SYS_MSG.SEED_SUCCESS} (${reviewerCount} reviewers, ${requestCount} requests)`);
+  const activityCount = await prisma.activity.count();
+  logger.info(
+    `${SYS_MSG.SEED_SUCCESS} (${reviewerCount} reviewers, ${requestCount} requests, ${activityCount} activities)`,
+  );
 }
 
 main()

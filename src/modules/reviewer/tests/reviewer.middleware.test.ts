@@ -4,8 +4,8 @@ import express, { type Application } from 'express';
 import { HttpStatus } from '../../../shared/constants/http-status.ts';
 import { SYS_MSG } from '../../../shared/constants/system.messages.ts';
 import { errorHandler } from '../../../shared/middleware/error-handler.ts';
+import { sendSuccess } from '../../../shared/utils/response.ts';
 import { requireReviewer } from '../reviewer.middleware.ts';
-
 const mocks = vi.hoisted(() => ({
   findById: vi.fn(),
 }));
@@ -16,7 +16,7 @@ vi.mock('../reviewer.repository.ts', () => ({ findById: mocks.findById }));
 function buildTestApp(): Application {
   const app: Application = express();
   app.get('/protected', requireReviewer, (req, res) => {
-    res.status(HttpStatus.OK).json({ reviewer: req.reviewer });
+    sendSuccess(res, { reviewer: req.reviewer });
   });
   app.use(errorHandler);
   return app;
@@ -71,7 +71,7 @@ describe('requireReviewer', () => {
     const res = await request(app).get('/protected').set('Authorization', 'Bearer reviewer-1');
 
     expect(res.status).toBe(HttpStatus.OK);
-    expect(res.body.reviewer).toEqual({
+    expect(res.body.data.reviewer).toEqual({
       id: 'reviewer-1',
       name: 'Amina Bello',
       email: 'amina.bello@peerless.com',

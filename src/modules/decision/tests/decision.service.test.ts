@@ -84,13 +84,17 @@ describe('DecisionService', () => {
   });
 
   it('approves a SUBMITTED request and records the activity in one transaction', async () => {
+    // Pre-transaction existence read, then the fresh read inside the
+    // transaction, then the post-update read.
     mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValue(makeRequestRow(request_status.APPROVED));
 
     const result = await service.decide('req-1', 'approve', 'reviewer-1');
 
     expect(mocks.findById).toHaveBeenNthCalledWith(1, mocks.prisma, 'req-1');
+    expect(mocks.findById).toHaveBeenNthCalledWith(2, tx, 'req-1');
     expect(mocks.updateStatusGuarded).toHaveBeenCalledWith(
       tx,
       'req-1',
@@ -106,7 +110,7 @@ describe('DecisionService', () => {
       request_status.APPROVED,
       undefined,
     );
-    expect(mocks.findById).toHaveBeenNthCalledWith(2, tx, 'req-1');
+    expect(mocks.findById).toHaveBeenNthCalledWith(3, tx, 'req-1');
     expect(result).toEqual({
       id: 'req-1',
       title: 'New monitor',
@@ -118,11 +122,15 @@ describe('DecisionService', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       comments: [],
       activities: [],
+      decision: 'approve',
+      reviewerId: 'reviewer-1',
+      decidedAt: '2026-01-01T00:00:00.000Z',
     });
   });
 
   it('rejects a SUBMITTED request with the decision notes', async () => {
     mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValue(makeRequestRow(request_status.REJECTED));
 
@@ -148,6 +156,7 @@ describe('DecisionService', () => {
 
   it('returns a request to its requester', async () => {
     mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
       .mockResolvedValue(makeRequestRow(request_status.RETURNED));
 
@@ -180,9 +189,10 @@ describe('DecisionService', () => {
   });
 
   it('throws ConflictError when the guarded update matches no rows', async () => {
-    mocks.findById
-      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
-      .mockResolvedValue(makeRequestRow(request_status.APPROVED));
+    // Both the pre-transaction and in-transaction reads see SUBMITTED, so
+    // validation passes; the guarded update then matches zero rows because a
+    // concurrent decision already committed.
+    mocks.findById.mockResolvedValue(makeRequestRow(request_status.SUBMITTED));
     mocks.updateStatusGuarded.mockResolvedValue(0);
 
     const promise = service.decide('req-1', 'approve', 'reviewer-1');
@@ -210,6 +220,7 @@ describe('DecisionService', () => {
   it('resubmits a RETURNED request and records the RESUBMISSION activity', async () => {
     mocks.findById
       .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
+      .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
       .mockResolvedValue(makeRequestRow(request_status.SUBMITTED));
 
     const result = await service.resubmit('req-1', 'Olu Smith');
@@ -222,10 +233,14 @@ describe('DecisionService', () => {
     );
     expect(mocks.recordResubmission).toHaveBeenCalledWith(tx, 'req-1', 'Olu Smith');
     expect(result.status).toBe(request_status.SUBMITTED);
+    expect(result.decision).toBe('resubmit');
+    expect(result.reviewerId).toBeNull();
   });
 
   it('throws BadRequestError when resubmitting a non-RETURNED request', async () => {
-    mocks.findById.mockResolvedValue(makeRequestRow(request_status.SUBMITTED));
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
+      .mockResolvedValue(makeRequestRow(request_status.SUBMITTED));
 
     const promise = service.resubmit('req-1', 'Olu Smith');
 
@@ -238,5 +253,26 @@ describe('DecisionService', () => {
         attempted_decision: 'resubmit',
       },
     });
+  });
+
+  it('treats a concurrent move that happens mid-flight as a duplicate decision', async () => {
+    // The pre-transaction snapshot sees SUBMITTED and validates, but by the
+    // time the transaction re-reads the row a concurrent decision already
+    // moved it to APPROVED. Because the snapshot passed validation, the fresh
+    // read no longer matching is a concurrent duplicate decision, not an
+    // invalid transition, so it must surface as 409.
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
+      .mockResolvedValue(makeRequestRow(request_status.APPROVED));
+
+    const promise = service.decide('req-1', 'approve', 'reviewer-1');
+
+    await expect(promise).rejects.toBeInstanceOf(ConflictError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.DUPLICATE_DECISION,
+      details: { request_id: 'req-1', decision: 'approve' },
+    });
+    expect(mocks.updateStatusGuarded).not.toHaveBeenCalled();
+    expect(mocks.recordDecision).not.toHaveBeenCalled();
   });
 });

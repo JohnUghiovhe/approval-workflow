@@ -64,7 +64,8 @@ export class RequestService {
     const created = await prisma.$transaction(async (tx) => {
       const row = await requestRepository.create(tx, {
         title: parsed.data.title,
-        // The column is NOT NULL, so an omitted description becomes an empty string.
+        // The column is NOT NULL, so an omitted or empty description is stored
+        // as an empty string; null is rejected by the schema as a type error.
         description: parsed.data.description ?? '',
         department: parsed.data.department,
         requester_name: parsed.data.requesterName,
@@ -97,6 +98,7 @@ export class RequestService {
       page,
       pageSize,
       total,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 
