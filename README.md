@@ -41,7 +41,7 @@ requirements.
    ```
 
    The dev database is the one the app and seed use. A second service,
-   `postgres_test` (port 5433), backs the DB-backed integration suites; they
+   `postgres_test` (port 5434), backs the DB-backed integration suites; they
    skip themselves when it is not running. Start both with:
 
    ```sh
@@ -149,7 +149,8 @@ Errors use the shared envelope with a stable `code` that clients can branch on:
 Prisma constraint failures are folded into the same structure: unique violation
 (`P2002`) becomes 409 `CONFLICT`, missing record (`P2025`) becomes 404
 `NOT_FOUND`, foreign key violation (`P2003`) becomes 422 `VALIDATION_ERROR`, and
-any other Prisma error becomes a generic 500 `DB_ERROR`. Internal errors always
+any other Prisma error becomes a generic 500 `DB_ERROR`. Malformed JSON bodies
+rejected by the body parser become 400 `BAD_REQUEST`. Internal errors always
 respond with `SYS_MSG.INTERNAL_SERVER_ERROR`; raw Prisma messages, SQL, and
 stack traces are logged but never sent to the client.
 
@@ -181,6 +182,85 @@ The health report follows the standard envelope:
 
 `status` is `healthy` when the database responds to `SELECT 1` and `degraded`
 otherwise. The report never leaks the database URL or other connection details.
+
+## Operations & Logging
+
+All logging goes through Pino. In development the output is pretty-printed; in
+every other environment it is structured JSON, one object per line. The level
+comes from `LOG_LEVEL` and is forced to `silent` under `NODE_ENV=test`. Health
+probes are excluded from the access log, and every request-scoped line carries
+`correlationId` so it can be matched to the [request correlation ID](#request-correlation-ids)
+echoed in the `x-request-id` response header.
+
+Successful access line (GET `/api/requests`, 200):
+
+```json
+{
+  "level": 30,
+  "time": 1786009635029,
+  "req": {
+    "id": "doc-trace-abc123",
+    "method": "GET",
+    "url": "/api/requests",
+    "remoteAddress": "::1"
+  },
+  "correlationId": "doc-trace-abc123",
+  "res": { "statusCode": 200 },
+  "responseTime": 355,
+  "msg": "request completed"
+}
+```
+
+Client error line (invalid POST body, logged at warn by the error handler):
+
+```json
+{
+  "level": 40,
+  "err": {
+    "type": "ValidationError",
+    "message": "Validation failed",
+    "code": "VALIDATION_ERROR",
+    "details": [
+      { "field": "title", "message": "Too small: expected string to have >=1 characters" }
+    ]
+  },
+  "method": "POST",
+  "url": "/api/requests",
+  "statusCode": 422,
+  "correlationId": "970c789b-...",
+  "msg": "Validation failed"
+}
+```
+
+Server error line (database unreachable, logged at error with the full stack):
+
+```json
+{
+  "level": 50,
+  "err": { "type": "PrismaClientKnownRequestError", "code": "ECONNREFUSED", "stack": "..." },
+  "method": "GET",
+  "url": "/api/requests",
+  "statusCode": 500,
+  "correlationId": "doc-trace-abc123",
+  "msg": "An unexpected error occurred"
+}
+```
+
+5xx responses are also flagged by the access logger as `request errored` instead
+of `request completed`, so failed traffic is easy to grep. See [Error Codes](#error-codes)
+for the full response code reference and [Health Endpoints](#health-endpoints) for
+liveness versus readiness.
+
+### Troubleshooting
+
+| Symptom                                | Likely cause                                                   | How to diagnose and fix                                                                                                                                                      |
+| -------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/health/ready` returns 503 `degraded` | Database unreachable                                           | Restart with `docker compose up -d` and confirm `docker compose ps`. DB-dependent requests log 500 `DB_ERROR` with `ECONNREFUSED`.                                           |
+| 400 `BAD_REQUEST` on a decision        | Decision violates the workflow transition table                | The request already left `Submitted` or is terminal (`Rejected`). See the transition table in `docs/Approval_Workflow_TRD.md`; the warn line carries the request id and url. |
+| 409 `CONFLICT` on a decision           | Duplicate decision for the same request                        | Only the first decision wins; `errors.request_id` identifies the request. Check the history with `GET /api/requests/:id/activities`.                                         |
+| 429 `TOO_MANY_REQUESTS`                | Client exceeded `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW_MS` | Raise the env limits if legitimate; the `RateLimit-*` response headers show the quota and remaining count. Health endpoints are never throttled.                             |
+| 408 `REQUEST_TIMEOUT`                  | Request exceeded `REQUEST_TIMEOUT_MS`                          | A slow query or a blocked route handler; the warn line logs method, url, and requestId. The timeout never aborts an in-flight DB transaction.                                |
+| 500 `INTERNAL` or `DB_ERROR`           | Unhandled exception or unmapped database failure               | The error-level line logs the original error and full stack. The response body only carries the safe message, never raw Prisma or SQL details.                               |
 
 ## Project Structure
 

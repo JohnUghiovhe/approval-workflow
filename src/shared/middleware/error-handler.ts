@@ -4,6 +4,7 @@ import { ERROR_CODES } from '../constants/error-codes.ts';
 import { HttpStatus } from '../constants/http-status.ts';
 import { SYS_MSG } from '../constants/system.messages.ts';
 import { AppError } from '../errors/app-error.ts';
+import { BadRequestError } from '../errors/bad-request-error.ts';
 import { ConflictError } from '../errors/conflict-error.ts';
 import { NotFoundError } from '../errors/not-found-error.ts';
 import { ValidationError } from '../errors/validation-error.ts';
@@ -22,6 +23,14 @@ function getRequestId(req: Parameters<ErrorRequestHandler>[1]): string | undefin
 function getCorrelationId(req: Parameters<ErrorRequestHandler>[1]): string | undefined {
   const id = req.id;
   return typeof id === 'string' && id.length > 0 ? id : undefined;
+}
+
+// Express's JSON body parser rejects malformed bodies with a SyntaxError
+// flagged with a 4xx status (type entity.parse.failed). Map those to 400 so a
+// client mistake is not reported as a 500 server failure.
+function isBodyParserError(err: unknown): err is SyntaxError & { status: number } {
+  const status = (err as { status?: unknown } | null)?.status;
+  return err instanceof SyntaxError && typeof status === 'number' && status >= 400 && status < 500;
 }
 
 // Map Prisma constraint errors onto the typed error hierarchy so database
@@ -48,6 +57,9 @@ function normalizeError(err: unknown): AppError {
   }
   if (err instanceof AppError) {
     return err;
+  }
+  if (isBodyParserError(err)) {
+    return new BadRequestError(SYS_MSG.BAD_REQUEST);
   }
   return new AppError(HttpStatus.INTERNAL_SERVER_ERROR, SYS_MSG.INTERNAL_SERVER_ERROR);
 }

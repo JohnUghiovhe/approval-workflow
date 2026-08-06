@@ -51,6 +51,12 @@ function buildApp(): Application {
   app.get('/prisma-other', () => {
     throw prismaError('P2024');
   });
+  app.get('/malformed-json', () => {
+    // Mirrors the SyntaxError body-parser raises for a malformed JSON body.
+    const err = new SyntaxError("Expected property name or '}' in JSON at position 1");
+    Object.defineProperty(err, 'status', { value: 400, enumerable: true });
+    throw err;
+  });
   app.use(errorHandler);
   return app;
 }
@@ -157,6 +163,17 @@ describe('errorHandler', () => {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: SYS_MSG.INTERNAL_SERVER_ERROR,
       code: ERROR_CODES.DB_ERROR,
+    });
+  });
+
+  it('maps a body-parser SyntaxError to 400 BAD_REQUEST instead of a 500', async () => {
+    const res = await request(app).get('/malformed-json');
+
+    expect(res.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(res.body).toEqual({
+      statusCode: HttpStatus.BAD_REQUEST,
+      message: SYS_MSG.BAD_REQUEST,
+      code: ERROR_CODES.BAD_REQUEST,
     });
   });
 });
