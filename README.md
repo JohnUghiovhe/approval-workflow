@@ -598,7 +598,9 @@ liveness versus readiness.
 Vitest runs the suite. DB-backed tests hit the real PostgreSQL test instance
 (`postgres_test`, port 5434) through Prisma; they detect when it is unreachable
 and skip themselves with a note rather than fail, so unit-only work never
-breaks.
+breaks. Set `TEST_DATABASE_URL` to point the suites at a different Postgres
+(e.g. the one CI provisions on port 5432); it defaults to the local
+`postgres_test` service.
 
 ```sh
 npm test                   # run once
@@ -608,7 +610,10 @@ npm run test:coverage      # run once with V8 coverage
 
 Coverage is collected over `src/` and thresholds are enforced (all ≥80%:
 lines, functions, branches, statements), so the run fails when coverage drops
-below the bar. The coverage report also prints a per-file breakdown.
+below the bar. The boot and seed entrypoints (`src/server.ts`,
+`src/database/seed.ts`) are excluded from the report because they are exercised
+by `npm run build` / startup probes and `npm run db:seed`, not by the test
+suite. The coverage report also prints a per-file breakdown.
 
 ### Layout
 

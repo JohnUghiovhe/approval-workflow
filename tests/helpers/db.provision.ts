@@ -2,17 +2,20 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createConnection } from 'node:net';
 
-// The test database URL must match the NODE_ENV=test fallback in
-// src/config/env.ts so migrations are applied to the same database the prisma
-// client connects to. NODE_ENV is pinned here for the main thread; the
-// per-worker pin lives in env-setup.ts.
+// The test database URL must match what env-setup.ts pins DATABASE_URL to so
+// migrations are applied to the same database the prisma client connects to.
+// TEST_DATABASE_URL lets CI redirect the suites to its provisioned Postgres;
+// locally it falls back to the docker-compose postgres_test service. NODE_ENV
+// is pinned here for the main thread; the per-worker pin lives in env-setup.ts.
 process.env.NODE_ENV = 'test';
 const testDatabaseUrl =
+  process.env.TEST_DATABASE_URL ??
   'postgresql://test:test@localhost:5434/approval_workflow_test?schema=public';
 
 function isDatabaseReachable(): Promise<boolean> {
   return new Promise((resolve) => {
-    const socket = createConnection({ host: 'localhost', port: 5434 }, () => {
+    const url = new URL(testDatabaseUrl);
+    const socket = createConnection({ host: url.hostname, port: Number(url.port || 5432) }, () => {
       socket.destroy();
       resolve(true);
     });
@@ -29,8 +32,9 @@ function isDatabaseReachable(): Promise<boolean> {
 // database is not running, report it once and let the suites skip.
 export default async function setup(): Promise<void> {
   if (!(await isDatabaseReachable())) {
+    const { hostname, port } = new URL(testDatabaseUrl);
     console.warn(
-      'Test database (localhost:5434) is unreachable; DB-backed integration tests will be skipped.',
+      `Test database (${hostname}:${port}) is unreachable; DB-backed integration tests will be skipped.`,
     );
     return;
   }

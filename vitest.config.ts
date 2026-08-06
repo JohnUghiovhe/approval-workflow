@@ -22,8 +22,12 @@ export default defineConfig({
         'src/generated/**',
         'src/**/*.test.ts',
         'src/**/tests/**',
-        // Non-code artifacts under src that the include glob would otherwise
-        // try to parse as scripts.
+        // Process bootstrap and the dev seed CLI: neither is exercised through
+        // the test suite (server.ts is validated by `npm run build` and startup
+        // probes, seed.ts by `npm run db:seed`), so counting their branches
+        // would only penalize coverage without any test value.
+        'src/server.ts',
+        'src/database/seed.ts',
         'src/database/migrations/**',
         '**/*.prisma',
         'tests/**',

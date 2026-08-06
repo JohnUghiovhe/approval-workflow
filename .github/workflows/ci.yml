@@ -10,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
+      # Provisioned as the CI Postgres service on port 5432. TEST_DATABASE_URL
+      # is what the test stack honors (env-setup.ts pins DATABASE_URL to it);
+      # DATABASE_URL is kept for non-test consumers and prisma tooling.
       DATABASE_URL: postgresql://test:test@localhost:5432/approval_workflow_test?schema=public
+      TEST_DATABASE_URL: postgresql://test:test@localhost:5432/approval_workflow_test?schema=public
       HUSKY: 0
     services:
       postgres:
