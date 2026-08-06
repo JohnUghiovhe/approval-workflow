@@ -5,7 +5,9 @@ import { ConflictError } from '../src/shared/errors/conflict-error.ts';
 import { CommentService } from '../src/modules/comment/comment.service.ts';
 import { DecisionService } from '../src/modules/decision/decision.service.ts';
 import { RequestService } from '../src/modules/request/request.service.ts';
+import { resetDatabase } from './helpers/cleanup.ts';
 import { isDatabaseAvailable } from './helpers/database.ts';
+import { createRequest, createReviewer } from './helpers/factories.ts';
 
 // DB-backed suite: probe once and skip every case when the database is
 // unreachable so the default `npm test` run never needs infrastructure.
@@ -17,45 +19,23 @@ const decisionService = new DecisionService();
 const commentService = new CommentService();
 
 let reviewerId = '';
-const requestIds: string[] = [];
-
-async function createReviewer(): Promise<string> {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const reviewer = await prisma.reviewer.create({
-    data: {
-      name: `Test Reviewer ${suffix}`,
-      email: `reviewer-${suffix}@example.com`,
-      role: 'reviewer',
-    },
-  });
-  return reviewer.id;
-}
-
-async function createRequest(): Promise<string> {
-  const created = await requestService.createRequest({
-    title: `Transaction ${Date.now()}`,
-    description: '4K display',
-    department: 'Engineering',
-    requesterName: 'Olu Smith',
-  });
-  requestIds.push(created.id);
-  return created.id;
-}
 
 beforeEach(async () => {
-  reviewerId = await createReviewer();
+  if (dbAvailable) {
+    reviewerId = (await createReviewer()).id;
+  }
 });
 
 afterEach(async () => {
-  // Requests cascade to their comments and activities; only then can the
-  // reviewer row (Restrict on comments) be removed safely.
-  await prisma.request.deleteMany({ where: { id: { in: requestIds } } });
-  requestIds.length = 0;
-  await prisma.reviewer.deleteMany({ where: { id: reviewerId } });
+  if (dbAvailable) {
+    await resetDatabase();
+  }
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  if (dbAvailable) {
+    await prisma.$disconnect();
+  }
 });
 
 describe('transactional consistency', () => {
@@ -92,7 +72,7 @@ describe('transactional consistency', () => {
   });
 
   itDb('lets exactly one concurrent decision win and returns 409 to the other', async () => {
-    const requestId = await createRequest();
+    const requestId = (await createRequest()).id;
 
     // Both callers read SUBMITTED before either writes, so the second guarded
     // update matches no rows and surfaces as a duplicate decision.
@@ -117,7 +97,7 @@ describe('transactional consistency', () => {
   });
 
   itDb('keeps the activity history append-only and stably ordered', async () => {
-    const requestId = await createRequest();
+    const requestId = (await createRequest()).id;
 
     await decisionService.decide(requestId, 'approve', reviewerId, 'Looks good');
     await commentService.addComment(requestId, reviewerId, 'First comment');

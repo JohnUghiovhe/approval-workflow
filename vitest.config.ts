@@ -9,5 +9,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
     setupFiles: ['tests/helpers/env-setup.ts'],
     globalSetup: ['tests/helpers/db.provision.ts'],
+    // DB-backed suites share one test database and resetDatabase() clears
+    // whole tables, so run files one at a time instead of in parallel.
+    fileParallelism: false,
   },
 });

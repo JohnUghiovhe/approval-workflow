@@ -3,9 +3,13 @@ import request from 'supertest';
 import app from '../src/app.ts';
 import { prisma } from '../src/database/index.ts';
 import { activity_action } from '../src/generated/prisma/client.ts';
+import { ERROR_CODES } from '../src/shared/constants/error-codes.ts';
 import { HttpStatus } from '../src/shared/constants/http-status.ts';
 import { SYS_MSG } from '../src/shared/constants/system.messages.ts';
+import { expectErrorResponse } from './helpers/assertions.ts';
+import { resetDatabase } from './helpers/cleanup.ts';
 import { isDatabaseAvailable } from './helpers/database.ts';
+import { authenticateAs, createRequest, createReviewer } from './helpers/factories.ts';
 
 // DB-backed suite: probe once and skip every case when the database is
 // unreachable so the default `npm test` run never needs infrastructure
@@ -15,59 +19,26 @@ import { isDatabaseAvailable } from './helpers/database.ts';
 const dbAvailable = await isDatabaseAvailable();
 const itDb = dbAvailable ? it : it.skip;
 
-let reviewerId = '';
-const requestIds: string[] = [];
-
-async function createReviewer(): Promise<string> {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const reviewer = await prisma.reviewer.create({
-    data: {
-      name: `Workflow Test Reviewer ${suffix}`,
-      email: `workflow-reviewer-${suffix}@example.com`,
-      role: 'reviewer',
-    },
-  });
-  return reviewer.id;
-}
-
-async function createRequest(): Promise<string> {
-  const res = await request(app)
-    .post('/api/requests')
-    .send({
-      title: `Workflow request ${Date.now()}`,
-      description: '4K display',
-      department: 'Engineering',
-      requesterName: 'Olu Smith',
-    });
-  expect(res.status).toBe(HttpStatus.CREATED);
-  const id = res.body.data.id as string;
-  requestIds.push(id);
-  return id;
-}
-
 afterEach(async () => {
-  // Requests cascade to their comments and activities; only then can the
-  // reviewer row (Restrict on comments) be removed safely.
-  await prisma.request.deleteMany({ where: { id: { in: requestIds } } });
-  requestIds.length = 0;
-  if (reviewerId) {
-    await prisma.reviewer.deleteMany({ where: { id: reviewerId } });
-    reviewerId = '';
+  if (dbAvailable) {
+    await resetDatabase();
   }
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  if (dbAvailable) {
+    await prisma.$disconnect();
+  }
 });
 
 describe('workflow verification', () => {
   itDb('runs the full lifecycle: submit -> approve -> view with activity rows', async () => {
-    reviewerId = await createReviewer();
-    const id = await createRequest();
+    const reviewer = await createReviewer();
+    const id = (await createRequest()).id;
 
     const approveRes = await request(app)
       .post(`/api/requests/${id}/approve`)
-      .set('Authorization', `Bearer ${reviewerId}`);
+      .set(authenticateAs(reviewer.id));
     expect(approveRes.status).toBe(HttpStatus.OK);
     expect(approveRes.body.data.status).toBe('APPROVED');
 
@@ -81,12 +52,12 @@ describe('workflow verification', () => {
   });
 
   itDb('runs submit -> return -> resubmit -> approve', async () => {
-    reviewerId = await createReviewer();
-    const id = await createRequest();
+    const reviewer = await createReviewer();
+    const id = (await createRequest()).id;
 
     const returnRes = await request(app)
       .post(`/api/requests/${id}/return`)
-      .set('Authorization', `Bearer ${reviewerId}`)
+      .set(authenticateAs(reviewer.id))
       .send({ notes: 'Fix the details' });
     expect(returnRes.status).toBe(HttpStatus.OK);
     expect(returnRes.body.data.status).toBe('RETURNED');
@@ -99,59 +70,73 @@ describe('workflow verification', () => {
 
     const approveRes = await request(app)
       .post(`/api/requests/${id}/approve`)
-      .set('Authorization', `Bearer ${reviewerId}`);
+      .set(authenticateAs(reviewer.id));
     expect(approveRes.status).toBe(HttpStatus.OK);
     expect(approveRes.body.data.status).toBe('APPROVED');
   });
 
   itDb('rejects an invalid transition with 400', async () => {
-    reviewerId = await createReviewer();
-    const id = await createRequest();
+    const reviewer = await createReviewer();
+    const id = (await createRequest()).id;
 
-    await request(app)
-      .post(`/api/requests/${id}/approve`)
-      .set('Authorization', `Bearer ${reviewerId}`);
+    await request(app).post(`/api/requests/${id}/approve`).set(authenticateAs(reviewer.id));
 
     const res = await request(app)
       .post(`/api/requests/${id}/approve`)
-      .set('Authorization', `Bearer ${reviewerId}`);
+      .set(authenticateAs(reviewer.id));
 
-    expect(res.status).toBe(HttpStatus.BAD_REQUEST);
-    expect(res.body.message).toBe(SYS_MSG.INVALID_STATE_TRANSITION);
+    expectErrorResponse(res, {
+      status: HttpStatus.BAD_REQUEST,
+      code: ERROR_CODES.BAD_REQUEST,
+      message: SYS_MSG.INVALID_STATE_TRANSITION,
+    });
   });
 
   itDb('lets only one concurrent HTTP decision win; the loser gets 409', async () => {
-    reviewerId = await createReviewer();
-    const id = await createRequest();
+    const reviewer = await createReviewer();
+    const id = (await createRequest()).id;
 
     // Both requests read SUBMITTED before either transaction commits, so the
     // second guarded update matches no rows and surfaces as a duplicate
     // decision (409) instead of corrupting the request state.
     const [first, second] = await Promise.all([
-      request(app).post(`/api/requests/${id}/approve`).set('Authorization', `Bearer ${reviewerId}`),
-      request(app).post(`/api/requests/${id}/approve`).set('Authorization', `Bearer ${reviewerId}`),
+      request(app).post(`/api/requests/${id}/approve`).set(authenticateAs(reviewer.id)),
+      request(app).post(`/api/requests/${id}/approve`).set(authenticateAs(reviewer.id)),
     ]);
 
     const statuses = [first.status, second.status].sort();
     expect(statuses).toEqual([HttpStatus.OK, HttpStatus.CONFLICT]);
     const conflict = [first, second].find((res) => res.status === HttpStatus.CONFLICT);
-    expect(conflict?.body.message).toBe(SYS_MSG.DUPLICATE_DECISION);
+    expect(conflict).toBeDefined();
+    if (conflict) {
+      expectErrorResponse(conflict, {
+        status: HttpStatus.CONFLICT,
+        code: ERROR_CODES.CONFLICT,
+        message: SYS_MSG.DUPLICATE_DECISION,
+      });
+    }
 
     const final = await request(app).get(`/api/requests/${id}`);
     expect(final.body.data.status).toBe('APPROVED');
   });
 
   itDb('rejects decisions and comments without a bearer token with 401', async () => {
-    const id = await createRequest();
+    const id = (await createRequest()).id;
 
     const approveRes = await request(app).post(`/api/requests/${id}/approve`);
-    expect(approveRes.status).toBe(HttpStatus.UNAUTHORIZED);
-    expect(approveRes.body.message).toBe(SYS_MSG.INVALID_AUTHORIZATION_HEADER);
+    expectErrorResponse(approveRes, {
+      status: HttpStatus.UNAUTHORIZED,
+      code: ERROR_CODES.UNAUTHORIZED,
+      message: SYS_MSG.INVALID_AUTHORIZATION_HEADER,
+    });
 
     const commentRes = await request(app)
       .post(`/api/requests/${id}/comments`)
       .send({ body: 'Looks good' });
-    expect(commentRes.status).toBe(HttpStatus.UNAUTHORIZED);
-    expect(commentRes.body.message).toBe(SYS_MSG.INVALID_AUTHORIZATION_HEADER);
+    expectErrorResponse(commentRes, {
+      status: HttpStatus.UNAUTHORIZED,
+      code: ERROR_CODES.UNAUTHORIZED,
+      message: SYS_MSG.INVALID_AUTHORIZATION_HEADER,
+    });
   });
 });
