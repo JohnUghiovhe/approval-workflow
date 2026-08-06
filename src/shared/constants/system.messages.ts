@@ -13,6 +13,7 @@ export const SYS_MSG = {
   INVALID_AUTHORIZATION_HEADER: 'Missing or invalid authorization header',
   REVIEWER_NOT_FOUND: 'Reviewer not found',
   COMMENT_ADDED: 'Comment added successfully',
+  SERVICE_UNAVAILABLE: 'Service is not ready',
   INTERNAL_SERVER_ERROR: 'An unexpected error occurred',
   SEED_SUCCESS: 'Database seeded successfully',
 } as const;

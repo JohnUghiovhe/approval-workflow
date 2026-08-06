@@ -93,6 +93,35 @@ requirements.
 | `PORT`         | HTTP port the server binds to          | `3000`                                           |
 | `DATABASE_URL` | PostgreSQL connection string           | required (throwaway value under `NODE_ENV=test`) |
 
+## Health Endpoints
+
+Operational probes live at the top level (outside `/api`) and are excluded from
+the access log:
+
+| Endpoint            | Purpose                                                 | Response                                   |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| `GET /health`       | Liveness: the process answers, so it always returns 200 | 200 with the health report                 |
+| `GET /health/ready` | Readiness: reports the database state                   | 200 when the DB is reachable, 503 when not |
+
+The health report follows the standard envelope:
+
+```json
+{
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": {
+    "status": "healthy",
+    "timestamp": "2026-08-06T09:00:00.000Z",
+    "uptime": 123.45,
+    "version": "1.0.0",
+    "checks": { "database": "up" }
+  }
+}
+```
+
+`status` is `healthy` when the database responds to `SELECT 1` and `degraded`
+otherwise. The report never leaks the database URL or other connection details.
+
 ## Project Structure
 
 ```text

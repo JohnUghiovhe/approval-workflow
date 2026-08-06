@@ -18,4 +18,9 @@ export const logger: Logger = pino({
     : {}),
 });
 
-export const httpLogger: HttpLogger = pinoHttp({ logger });
+// Skip access logging for the health endpoints so orchestration probes do not
+// flood the logs; the /api access lines carry the real traffic signal.
+export const httpLogger: HttpLogger = pinoHttp({
+  logger,
+  autoLogging: { ignore: (req) => (req.url ?? '').startsWith('/health') },
+});
