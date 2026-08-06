@@ -70,6 +70,15 @@ requirements.
 
    The API listens on http://localhost:3000.
 
+## API Documentation
+
+Interactive API documentation is served by Swagger UI at
+http://localhost:3000/api/docs. The machine-readable spec is available at
+http://localhost:3000/api/docs/openapi.json, and its source of truth lives in
+[`docs/openapi.yaml`](docs/openapi.yaml). The served document reads
+`info.version` from `package.json` and sets `servers` from the configured port,
+so the docs always describe the deployment actually serving them.
+
 ## Scripts
 
 | Command                | Purpose                                                     |
@@ -289,7 +298,7 @@ src/
     ├── utils/              Logger, response helpers, async wrapper
     └── validators/         Shared Zod schemas (pagination)
 tests/                      Global tests
-docs/                       TRD, ticket tracking, task rules
+docs/                       TRD, ticket tracking, task rules, OpenAPI spec
 ```
 
 ## Implementation Notes

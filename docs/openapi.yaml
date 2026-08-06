@@ -39,6 +39,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LivenessResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  status: ok
+                  timestamp: '2026-08-06T14:47:18.460Z'
+                  uptime: 7.19
+                  version: 1.0.0
 
   /health/ready:
     get:
@@ -53,18 +61,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  status: healthy
+                  timestamp: '2026-08-06T14:56:36.958Z'
+                  uptime: 565.69
+                  version: 1.0.0
+                  checks:
+                    database: up
         '503':
           description: Service is degraded because the database is unreachable
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                statusCode: 503
+                message: Operation completed successfully
+                data:
+                  status: degraded
+                  timestamp: '2026-08-06T14:56:36.958Z'
+                  uptime: 565.69
+                  version: 1.0.0
+                  checks:
+                    database: down
 
   /api/requests:
     post:
       tags: [Requests]
       summary: Create a request
-      description: Creates a request in SUBMITTED state and records its submission activity.
+      description: >
+        Creates a request in SUBMITTED state and records its submission activity
+        in the same transaction. Public; no bearer token required.
       operationId: createRequest
       requestBody:
         required: true
@@ -79,6 +109,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RequestResponse'
+              example:
+                statusCode: 201
+                message: Request created successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: Laptop upgrade for design team
+                  description: >-
+                    Replace aging laptops for the design team with newer models
+                    to keep design tools performant.
+                  department: Engineering
+                  requesterName: Olu Smith
+                  status: SUBMITTED
+                  createdAt: '2026-08-06T14:56:36.552Z'
+                  updatedAt: '2026-08-06T14:56:36.552Z'
+                  comments: []
+                  activities: []
         '400':
           $ref: '#/components/responses/BadRequest'
         '413':
@@ -105,6 +151,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListRequestsResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  data:
+                    - id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      title: Laptop upgrade for design team
+                      description: >-
+                        Replace aging laptops for the design team with newer
+                        models to keep design tools performant.
+                      department: Engineering
+                      requesterName: Olu Smith
+                      status: SUBMITTED
+                      createdAt: '2026-08-06T14:56:36.552Z'
+                      updatedAt: '2026-08-06T14:56:36.552Z'
+                      comments: []
+                      activities: []
+                  page: 1
+                  pageSize: 10
+                  total: 1
+                  totalPages: 1
         '422':
           $ref: '#/components/responses/ValidationError'
         '429':
@@ -127,10 +194,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RequestResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: Laptop upgrade for design team
+                  description: >-
+                    Replace aging laptops for the design team with newer models
+                    to keep design tools performant.
+                  department: Engineering
+                  requesterName: Olu Smith
+                  status: APPROVED
+                  createdAt: '2026-08-06T14:56:36.552Z'
+                  updatedAt: '2026-08-06T14:57:23.086Z'
+                  comments:
+                    - id: 7b0a8108-ba62-4c80-bdd2-f44aa9a178aa
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      reviewerName: Amina Bello
+                      body: Looks good, ship it
+                      createdAt: '2026-08-06T14:57:23.327Z'
+                  activities:
+                    - id: e57ec109-4079-483a-9f64-bef6feece8fd
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Olu Smith
+                      createdAt: '2026-08-06T14:57:22.930Z'
+                    - id: b291b580-bda4-4f90-bb83-c3c1f68d2017
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: APPROVAL
+                      fromStatus: SUBMITTED
+                      toStatus: APPROVED
+                      note: null
+                      createdAt: '2026-08-06T14:57:23.095Z'
+                    - id: 03f69585-541d-4670-94c7-010d9b94a0ed
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: COMMENT
+                      fromStatus: null
+                      toStatus: null
+                      note: Looks good, ship it
+                      createdAt: '2026-08-06T14:57:23.340Z'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -138,7 +253,7 @@ paths:
     post:
       tags: [Decisions]
       summary: Approve a request
-      description: Reviewer-only. Takes no body.
+      description: Reviewer-only. Takes no body and no request body is expected.
       operationId: approveRequest
       security:
         - bearerAuth: []
@@ -150,7 +265,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestResponse'
+                $ref: '#/components/schemas/DecisionResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: Laptop upgrade for design team
+                  description: Replace aging laptops.
+                  department: Engineering
+                  requesterName: Olu Smith
+                  status: APPROVED
+                  createdAt: '2026-08-06T14:57:22.921Z'
+                  updatedAt: '2026-08-06T14:57:23.086Z'
+                  comments: []
+                  activities:
+                    - id: e57ec109-4079-483a-9f64-bef6feece8fd
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Olu Smith
+                      createdAt: '2026-08-06T14:57:22.930Z'
+                    - id: b291b580-bda4-4f90-bb83-c3c1f68d2017
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: APPROVAL
+                      fromStatus: SUBMITTED
+                      toStatus: APPROVED
+                      note: null
+                      createdAt: '2026-08-06T14:57:23.095Z'
+                  decision: approve
+                  reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                  decidedAt: '2026-08-06T14:57:23.086Z'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -159,6 +307,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -184,7 +336,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestResponse'
+                $ref: '#/components/schemas/DecisionResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: New CRM software subscription
+                  description: Purchase a yearly subscription for a cloud CRM.
+                  department: Sales
+                  requesterName: Ngozi Eze
+                  status: REJECTED
+                  createdAt: '2026-08-06T14:57:23.376Z'
+                  updatedAt: '2026-08-06T14:57:23.440Z'
+                  comments: []
+                  activities:
+                    - id: 1f15a4e9-04b1-48cf-8583-7e4ae9f4b4b5
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Ngozi Eze
+                      createdAt: '2026-08-06T14:57:23.379Z'
+                    - id: 556ad326-383b-4b28-a5a9-cd9b38eab2e8
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: REJECTION
+                      fromStatus: SUBMITTED
+                      toStatus: REJECTED
+                      note: Out of scope
+                      createdAt: '2026-08-06T14:57:23.445Z'
+                  decision: reject
+                  reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                  decidedAt: '2026-08-06T14:57:23.440Z'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -193,8 +378,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -202,7 +391,9 @@ paths:
     post:
       tags: [Decisions]
       summary: Return a request for correction
-      description: Reviewer-only. Puts the request back into SUBMITTED on resubmission.
+      description: >
+        Reviewer-only. Moves the request to RETURNED so the requester can fix it
+        and resubmit.
       operationId: returnRequest
       security:
         - bearerAuth: []
@@ -220,7 +411,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestResponse'
+                $ref: '#/components/schemas/DecisionResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: Office snack restock
+                  description: Restock the pantry for the quarter.
+                  department: People
+                  requesterName: Kemi Alade
+                  status: RETURNED
+                  createdAt: '2026-08-06T14:57:23.137Z'
+                  updatedAt: '2026-08-06T14:57:23.203Z'
+                  comments: []
+                  activities:
+                    - id: 9d42cba8-fa9d-4111-85a1-fdab54612121
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Kemi Alade
+                      createdAt: '2026-08-06T14:57:23.140Z'
+                    - id: 462072e8-05c3-41b9-baa2-8e41d8027716
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: RETURN
+                      fromStatus: SUBMITTED
+                      toStatus: RETURNED
+                      note: Fix the details
+                      createdAt: '2026-08-06T14:57:23.207Z'
+                  decision: return
+                  reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                  decidedAt: '2026-08-06T14:57:23.203Z'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -229,8 +453,12 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -238,7 +466,9 @@ paths:
     post:
       tags: [Decisions]
       summary: Resubmit a returned request
-      description: Public. Only valid from RETURNED state.
+      description: >
+        Public. Only valid from RETURNED state; the requester confirms the
+        correction with requesterName.
       operationId: resubmitRequest
       parameters:
         - $ref: '#/components/parameters/RequestId'
@@ -254,13 +484,60 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RequestResponse'
+                $ref: '#/components/schemas/DecisionResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  id: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  title: Office snack restock
+                  description: Restock the pantry for the quarter.
+                  department: People
+                  requesterName: Kemi Alade
+                  status: SUBMITTED
+                  createdAt: '2026-08-06T14:57:23.137Z'
+                  updatedAt: '2026-08-06T14:57:23.267Z'
+                  comments: []
+                  activities:
+                    - id: 9d42cba8-fa9d-4111-85a1-fdab54612121
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Kemi Alade
+                      createdAt: '2026-08-06T14:57:23.140Z'
+                    - id: 462072e8-05c3-41b9-baa2-8e41d8027716
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: RETURN
+                      fromStatus: SUBMITTED
+                      toStatus: RETURNED
+                      note: Fix the details
+                      createdAt: '2026-08-06T14:57:23.207Z'
+                    - id: 626d8922-c772-4488-bb3c-fc409b3d11ce
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: RESUBMISSION
+                      fromStatus: RETURNED
+                      toStatus: SUBMITTED
+                      note: Kemi Alade
+                      createdAt: '2026-08-06T14:57:23.271Z'
+                  decision: resubmit
+                  reviewerId: null
+                  decidedAt: '2026-08-06T14:57:23.267Z'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -268,7 +545,9 @@ paths:
     post:
       tags: [Comments]
       summary: Add a comment
-      description: Reviewer-only. Also records a COMMENT activity row.
+      description: >
+        Reviewer-only. Attaches a comment to the request and records a COMMENT
+        activity row in the same transaction.
       operationId: addComment
       security:
         - bearerAuth: []
@@ -287,12 +566,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommentResponse'
+              example:
+                statusCode: 201
+                message: Comment added successfully
+                data:
+                  id: 7b0a8108-ba62-4c80-bdd2-f44aa9a178aa
+                  requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                  reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                  reviewerName: Amina Bello
+                  body: Looks good, ship it
+                  createdAt: '2026-08-06T14:57:23.327Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -311,10 +604,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ActivitiesResponse'
+              example:
+                statusCode: 200
+                message: Operation completed successfully
+                data:
+                  activities:
+                    - id: 2ade1599-5079-4e96-b0a3-f24a2ba5f112
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: null
+                      action: SUBMISSION
+                      fromStatus: null
+                      toStatus: SUBMITTED
+                      note: Olu Smith
+                      createdAt: '2026-08-06T14:56:36.576Z'
+                    - id: 03f69585-541d-4670-94c7-010d9b94a0ed
+                      requestId: 050de558-2ec7-401f-8bc3-911ebecb6202
+                      reviewerId: d5321303-99dc-469d-90ad-f06b4e56a6b9
+                      action: COMMENT
+                      fromStatus: null
+                      toStatus: null
+                      note: Looks good, ship it
+                      createdAt: '2026-08-06T14:57:23.340Z'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -325,8 +641,8 @@ components:
       scheme: bearer
       description: >
         Reviewer token. Authentication is mocked: the bearer token is the
-        reviewer id, and the header must be present on reviewer-only
-        endpoints.
+        reviewer id, and the header must be present on reviewer-only endpoints.
+        Request: `Authorization: Bearer <reviewer-uuid>`.
 
   parameters:
     RequestId:
@@ -337,6 +653,7 @@ components:
       schema:
         type: string
         format: uuid
+      example: 050de558-2ec7-401f-8bc3-911ebecb6202
     Page:
       name: page
       in: query
@@ -346,6 +663,7 @@ components:
         type: integer
         minimum: 1
         default: 1
+      example: 1
     PageSize:
       name: pageSize
       in: query
@@ -356,6 +674,7 @@ components:
         minimum: 1
         maximum: 100
         default: 10
+      example: 10
     StatusFilter:
       name: status
       in: query
@@ -363,6 +682,7 @@ components:
       description: Filter requests by status
       schema:
         $ref: '#/components/schemas/RequestStatus'
+      example: SUBMITTED
 
   responses:
     BadRequest:
@@ -371,48 +691,102 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 400
+            message: Request cannot transition to the requested state
+            code: BAD_REQUEST
+            requestId: 9e103d30-6990-4884-b48b-a5a53ad8777a
+            errors:
+              request_id: 050de558-2ec7-401f-8bc3-911ebecb6202
+              current_status: APPROVED
+              attempted_decision: approve
     Unauthorized:
       description: Missing or invalid bearer token
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 401
+            message: Missing or invalid authorization header
+            code: UNAUTHORIZED
+            requestId: 9e3b8335-96a6-4173-a42c-438e913cf692
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 404
+            message: Request not found
+            code: NOT_FOUND
+            requestId: 0606124f-a362-4e0a-9973-7b9c3588fc29
+            errors:
+              request_id: 00000000-0000-0000-0000-000000000000
     Conflict:
       description: A decision has already been recorded for this request
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 409
+            message: A decision has already been recorded for this request
+            code: CONFLICT
+            requestId: 9f8e1d4c-2b3a-4c5d-8e6f-1a2b3c4d5e6f
+            errors:
+              request_id: 050de558-2ec7-401f-8bc3-911ebecb6202
+              decision: approve
     ValidationError:
       description: Request payload, query, or params failed validation
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 422
+            message: Validation failed
+            code: VALIDATION_ERROR
+            requestId: 2f5ae5a7-afbf-4ab1-82df-7f0fb5871554
+            errors:
+              - field: title
+                message: 'Too small: expected string to have >=1 characters'
+              - field: department
+                message: 'Too small: expected string to have >=1 characters'
+              - field: requesterName
+                message: 'Too small: expected string to have >=1 characters'
     PayloadTooLarge:
       description: Request body exceeds the configured JSON size limit
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 413
+            message: Payload too large
+            code: PAYLOAD_TOO_LARGE
     TooManyRequests:
       description: Rate limit exceeded
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 429
+            message: Too many requests, please try again later
+            code: TOO_MANY_REQUESTS
     InternalError:
       description: Unexpected server error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            statusCode: 500
+            message: An unexpected error occurred
+            code: INTERNAL
+            requestId: 7c4a1e2f-9b8d-4a5c-8e7f-3f6a1b2c3d4e
 
   schemas:
     RequestStatus:
@@ -423,27 +797,49 @@ components:
       type: string
       enum: [SUBMISSION, APPROVAL, REJECTION, RETURN, RESUBMISSION, COMMENT]
 
-    # The standard error envelope. errors carries per-field issues for
-    # validation failures; requestId is the correlation id set by the logger.
+    # The standard error envelope. `errors` carries per-field issues as an array
+    # for validation failures or the raw details object for business errors;
+    # requestId is the correlation id set by the logger.
     ErrorResponse:
       type: object
       required: [statusCode, message, code]
       properties:
         statusCode:
           type: integer
+          description: HTTP status of the response
         message:
           type: string
+          description: Human-readable error message
         code:
           type: string
+          description: Stable machine-readable error code for branching
+          enum:
+            [
+              PAYLOAD_TOO_LARGE,
+              BAD_REQUEST,
+              UNAUTHORIZED,
+              NOT_FOUND,
+              CONFLICT,
+              VALIDATION_ERROR,
+              TOO_MANY_REQUESTS,
+              REQUEST_TIMEOUT,
+              DB_ERROR,
+              INTERNAL,
+            ]
         errors:
-          type: array
-          items:
-            type: object
-            properties:
-              field:
-                type: string
-              message:
-                type: string
+          description: Optional validation issues or business error details
+          oneOf:
+            - type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+            - type: object
+              additionalProperties: true
         requestId:
           type: string
           description: Correlation id attached by the request logger
@@ -483,7 +879,15 @@ components:
 
     ActivityDto:
       type: object
-      required: [id, requestId, action, createdAt]
+      required:
+        - id
+        - requestId
+        - reviewerId
+        - action
+        - fromStatus
+        - toStatus
+        - note
+        - createdAt
       properties:
         id:
           type: string
@@ -495,15 +899,23 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: Reviewer who acted; null for submission and resubmission
         action:
           $ref: '#/components/schemas/ActivityAction'
         fromStatus:
-          $ref: '#/components/schemas/RequestStatus'
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+          nullable: true
+          description: Status before the action; null when there was none
         toStatus:
-          $ref: '#/components/schemas/RequestStatus'
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+          nullable: true
+          description: Status after the action; null for comments
         note:
           type: string
           nullable: true
+          description: Requester name, decision notes, or comment body
         createdAt:
           type: string
           format: date-time
@@ -519,6 +931,8 @@ components:
         - status
         - createdAt
         - updatedAt
+        - comments
+        - activities
       properties:
         id:
           type: string
@@ -527,6 +941,7 @@ components:
           type: string
         description:
           type: string
+          description: Empty string when the requester omitted it
         department:
           type: string
         requesterName:
@@ -548,6 +963,26 @@ components:
           items:
             $ref: '#/components/schemas/ActivityDto'
 
+    # A decision response extends the request with who decided, what was
+    # decided, and when. reviewerId is null for resubmissions because the
+    # requester, not a reviewer, performs them.
+    DecisionDto:
+      allOf:
+        - $ref: '#/components/schemas/RequestDto'
+        - type: object
+          required: [decision, reviewerId, decidedAt]
+          properties:
+            decision:
+              type: string
+              enum: [approve, reject, return, resubmit]
+            reviewerId:
+              type: string
+              format: uuid
+              nullable: true
+            decidedAt:
+              type: string
+              format: date-time
+
     CreateRequestInput:
       type: object
       required: [title, department, requesterName]
@@ -555,14 +990,20 @@ components:
         title:
           type: string
           minLength: 1
+          example: Laptop upgrade for design team
         description:
           type: string
+          example: >-
+            Replace aging laptops for the design team with newer models to keep
+            design tools performant.
         department:
           type: string
           minLength: 1
+          example: Engineering
         requesterName:
           type: string
           minLength: 1
+          example: Olu Smith
 
     DecisionInput:
       type: object
@@ -570,6 +1011,7 @@ components:
         notes:
           type: string
           description: Optional notes explaining a reject or return
+          example: Fix the details
 
     ResubmitInput:
       type: object
@@ -578,6 +1020,7 @@ components:
         requesterName:
           type: string
           minLength: 1
+          example: Kemi Alade
 
     AddCommentInput:
       type: object
@@ -586,6 +1029,7 @@ components:
         body:
           type: string
           minLength: 1
+          example: Looks good, ship it
 
     LivenessCheck:
       type: object
@@ -618,6 +1062,7 @@ components:
           type: string
         checks:
           type: object
+          required: [database]
           properties:
             database:
               type: string
@@ -649,6 +1094,15 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/RequestDto'
+
+    DecisionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/DecisionDto'
 
     CommentResponse:
       allOf:
