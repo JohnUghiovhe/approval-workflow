@@ -217,6 +217,38 @@ describe('DecisionService', () => {
     });
   });
 
+  it('throws NotFoundError when the request vanishes inside the transaction', async () => {
+    // The pre-transaction snapshot sees SUBMITTED, but the in-transaction
+    // re-read no longer finds the row, so the whole decision is abandoned.
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
+      .mockResolvedValue(null);
+
+    const promise = service.decide('req-1', 'approve', 'reviewer-1');
+
+    await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.REQUEST_NOT_FOUND,
+      details: { request_id: 'req-1' },
+    });
+    expect(mocks.updateStatusGuarded).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundError when the request is gone after the transaction commits', async () => {
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
+      .mockResolvedValueOnce(makeRequestRow(request_status.SUBMITTED))
+      .mockResolvedValue(null);
+
+    const promise = service.decide('req-1', 'approve', 'reviewer-1');
+
+    await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.REQUEST_NOT_FOUND,
+      details: { request_id: 'req-1' },
+    });
+  });
+
   it('resubmits a RETURNED request and records the RESUBMISSION activity', async () => {
     mocks.findById
       .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
@@ -274,5 +306,76 @@ describe('DecisionService', () => {
     });
     expect(mocks.updateStatusGuarded).not.toHaveBeenCalled();
     expect(mocks.recordDecision).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundError when resubmitting a missing request', async () => {
+    mocks.findById.mockResolvedValue(null);
+
+    const promise = service.resubmit('missing', 'Olu Smith');
+
+    await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.REQUEST_NOT_FOUND,
+      details: { request_id: 'missing' },
+    });
+  });
+
+  it('throws NotFoundError when the request vanishes inside the resubmit transaction', async () => {
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
+      .mockResolvedValue(null);
+
+    const promise = service.resubmit('req-1', 'Olu Smith');
+
+    await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.REQUEST_NOT_FOUND,
+      details: { request_id: 'req-1' },
+    });
+    expect(mocks.updateStatusGuarded).not.toHaveBeenCalled();
+  });
+
+  it('treats a resubmitted request that moved mid-flight as a duplicate decision', async () => {
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
+      .mockResolvedValue(makeRequestRow(request_status.APPROVED));
+
+    const promise = service.resubmit('req-1', 'Olu Smith');
+
+    await expect(promise).rejects.toBeInstanceOf(ConflictError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.DUPLICATE_DECISION,
+      details: { request_id: 'req-1', decision: 'resubmit' },
+    });
+    expect(mocks.updateStatusGuarded).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictError when the resubmit guarded update matches no rows', async () => {
+    mocks.findById.mockResolvedValue(makeRequestRow(request_status.RETURNED));
+    mocks.updateStatusGuarded.mockResolvedValue(0);
+
+    const promise = service.resubmit('req-1', 'Olu Smith');
+
+    await expect(promise).rejects.toBeInstanceOf(ConflictError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.DUPLICATE_DECISION,
+      details: { request_id: 'req-1', decision: 'resubmit' },
+    });
+    expect(mocks.recordResubmission).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundError when the resubmitted request is gone after commit', async () => {
+    mocks.findById
+      .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
+      .mockResolvedValueOnce(makeRequestRow(request_status.RETURNED))
+      .mockResolvedValue(null);
+
+    const promise = service.resubmit('req-1', 'Olu Smith');
+
+    await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    await expect(promise).rejects.toMatchObject({
+      message: SYS_MSG.REQUEST_NOT_FOUND,
+      details: { request_id: 'req-1' },
+    });
   });
 });

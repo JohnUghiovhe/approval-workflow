@@ -176,4 +176,15 @@ describe('errorHandler', () => {
       code: ERROR_CODES.BAD_REQUEST,
     });
   });
+
+  it('forwards to the next handler when response headers are already sent', () => {
+    const err = new Error('late failure');
+    const req = { id: 'corr-1', method: 'GET', url: '/boom' };
+    const res = { headersSent: true };
+    const next = vi.fn();
+
+    errorHandler(err, req as never, res as never, next);
+
+    expect(next).toHaveBeenCalledWith(err);
+  });
 });

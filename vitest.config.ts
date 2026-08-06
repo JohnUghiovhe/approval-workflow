@@ -12,5 +12,31 @@ export default defineConfig({
     // DB-backed suites share one test database and resetDatabase() clears
     // whole tables, so run files one at a time instead of in parallel.
     fileParallelism: false,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/**'],
+      // Count only application code: generated Prisma client, test files, and
+      // root config files never contribute to the report or the thresholds.
+      exclude: [
+        'src/generated/**',
+        'src/**/*.test.ts',
+        'src/**/tests/**',
+        // Non-code artifacts under src that the include glob would otherwise
+        // try to parse as scripts.
+        'src/database/migrations/**',
+        '**/*.prisma',
+        'tests/**',
+        'eslint.config.ts',
+        'prisma.config.ts',
+        'vitest.config.ts',
+      ],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+      },
+    },
   },
 });

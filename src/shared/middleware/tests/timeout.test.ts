@@ -1,6 +1,6 @@
 import express, { type Application } from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ERROR_CODES } from '../../constants/error-codes.ts';
 import { HttpStatus } from '../../constants/http-status.ts';
 import { SYS_MSG } from '../../constants/system.messages.ts';
@@ -44,5 +44,31 @@ describe('requestTimeout', () => {
 
     expect(res.status).toBe(HttpStatus.OK);
     expect(res.body).toEqual({ status: 'ok' });
+  });
+
+  it('leaves an already-ended response untouched when the timer fires', async () => {
+    const req = { path: '/slow' };
+    const res = { writableEnded: true, headersSent: true, on: vi.fn() };
+    const next = vi.fn();
+    const middleware = createRequestTimeout(5);
+
+    middleware(req as never, res as never, next);
+
+    await delay(15);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends a response whose headers were sent before the timeout', async () => {
+    const req = { path: '/slow' };
+    const end = vi.fn();
+    const res = { writableEnded: false, headersSent: true, end, on: vi.fn() };
+    const next = vi.fn();
+    const middleware = createRequestTimeout(5);
+
+    middleware(req as never, res as never, next);
+
+    await delay(15);
+    expect(end).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

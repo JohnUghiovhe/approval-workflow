@@ -12,6 +12,20 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://test:test@localhost:5432/approval_workflow_test?schema=public
       HUSKY: 0
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: approval_workflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U test -d approval_workflow_test
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,4 +37,5 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:coverage
       - run: npm run build

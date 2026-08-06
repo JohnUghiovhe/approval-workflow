@@ -40,6 +40,10 @@ function buildTestApp(): Application {
     }),
   );
 
+  app.get('/passthrough', validate({ query: undefined }), (req: Request, res: Response) => {
+    sendSuccess(res, { received: req.query });
+  });
+
   app.use(errorHandler);
   return app;
 }
@@ -83,6 +87,13 @@ describe('validation layer', () => {
 
     expect(res.status).toBe(HttpStatus.OK);
     expect(res.body.data.received).toEqual({ q: 'monitor', page: 1 });
+  });
+
+  it('skips a request part whose schema is undefined', async () => {
+    const res = await request(app).get('/passthrough?q=anything');
+
+    expect(res.status).toBe(HttpStatus.OK);
+    expect(res.body.data.received).toEqual({ q: 'anything' });
   });
 
   it('forwards rejected async handlers to the error middleware', async () => {

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
-import express, { type Application } from 'express';
+import express, { type Application, type Request, type Response } from 'express';
 import { HttpStatus } from '../../../shared/constants/http-status.ts';
 import { SYS_MSG } from '../../../shared/constants/system.messages.ts';
+import { UnauthorizedError } from '../../../shared/errors/unauthorized-error.ts';
 import { errorHandler } from '../../../shared/middleware/error-handler.ts';
 import { sendSuccess } from '../../../shared/utils/response.ts';
 import { requireReviewer } from '../reviewer.middleware.ts';
@@ -76,6 +77,23 @@ describe('requireReviewer', () => {
       name: 'Amina Bello',
       email: 'amina.bello@peerless.com',
       role: 'reviewer',
+    });
+  });
+
+  it('rejects a bearer header whose token trims to empty', async () => {
+    // Node's HTTP parser strips trailing whitespace, so a "Bearer " header
+    // arrives as "Bearer" and fails the prefix check instead. Invoke the
+    // middleware directly to exercise the empty-token path.
+    const req = { headers: { authorization: 'Bearer ' } } as Request;
+    const res = {} as Response;
+    const next = vi.fn();
+
+    requireReviewer(req, res, next);
+    await vi.waitFor(() => expect(next).toHaveBeenCalled());
+
+    expect(next.mock.calls[0]?.[0]).toBeInstanceOf(UnauthorizedError);
+    expect(next.mock.calls[0]?.[0]).toMatchObject({
+      message: SYS_MSG.INVALID_AUTHORIZATION_HEADER,
     });
   });
 });

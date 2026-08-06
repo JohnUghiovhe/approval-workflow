@@ -19,6 +19,7 @@ docs/swagger.yaml
 
 # Test outputs
 test-results/
+coverage/
 
 # Temporary files
 tmp/

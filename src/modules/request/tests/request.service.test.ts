@@ -88,6 +88,25 @@ describe('RequestService', () => {
     });
   });
 
+  it('stores an empty description when the create payload omits it', async () => {
+    mocks.create.mockResolvedValue(makeRequestRow());
+    mocks.recordSubmission.mockResolvedValue({});
+
+    const result = await service.createRequest({
+      title: 'New monitor',
+      department: 'Engineering',
+      requesterName: 'Olu Smith',
+    });
+
+    expect(mocks.create).toHaveBeenCalledWith(tx, {
+      title: 'New monitor',
+      description: '',
+      department: 'Engineering',
+      requester_name: 'Olu Smith',
+    });
+    expect(result.id).toBe('req-1');
+  });
+
   it('throws ValidationError when the create payload is invalid', async () => {
     await expect(
       service.createRequest({ title: '', department: 'Engineering', requesterName: 'Olu Smith' }),
