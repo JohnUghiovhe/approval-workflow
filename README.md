@@ -10,25 +10,21 @@ activity history.
 
 Built for the Peerless backend engineer assessment. See
 [docs/Approval_Workflow_TRD.md](docs/Approval_Workflow_TRD.md) for the full
-requirements, [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation
-deep-dive (domain model, state machine, layered design, and trade-offs), and
-[DEPLOYMENT.md](DEPLOYMENT.md) for running the packaged service with Docker
-(container build, migrations, reverse proxy, secrets).
+requirements, [docs/API.md](docs/API.md) for the detailed API contracts and data
+design, [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation deep-dive, and
+[DEPLOYMENT.md](DEPLOYMENT.md) for running the packaged service with Docker.
 
 ## Table of Contents
 
 - [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
+- [Assumptions](#assumptions)
 - [Getting Started](#getting-started)
 - [API Documentation](#api-documentation)
-- [API Walkthrough](#api-walkthrough)
 - [Scripts](#scripts)
 - [Environment Variables](#environment-variables)
-- [Rate Limiting and Timeouts](#rate-limiting-and-timeouts)
-- [Request Correlation IDs](#request-correlation-ids)
-- [Error Codes](#error-codes)
-- [Health Endpoints](#health-endpoints)
-- [Operations & Logging](#operations--logging)
+- [Architecture](#architecture)
+- [Design Trade-offs](#design-trade-offs)
+- [Operational Notes](#operational-notes)
 - [Testing Guide](#testing-guide)
 - [Project Structure](#project-structure)
 - [Implementation Notes](#implementation-notes)
@@ -45,12 +41,20 @@ deep-dive (domain model, state machine, layered design, and trade-offs), and
 - Vitest + Supertest for tests
 - ESLint + Prettier, Husky + lint-staged
 
-## Prerequisites
+## Assumptions
 
-- Node.js 22 LTS or newer
-- Docker (for the local PostgreSQL container)
+- Authentication is mocked using request headers: a reviewer's UUID is sent as
+  a bearer token and treated as their id (no passwords or JWTs).
+- Reviewers are pre-seeded by `npm run db:seed` (5 reviewers with sensible
+  names and emails).
+- All timestamps are UTC (`Timestamptz(3)`).
+- The data is synthetic and for the assessment only.
+- The service deploys as a single process against a single PostgreSQL database.
 
 ## Getting Started
+
+Prerequisites: Node.js 22 LTS or newer, and Docker for the local PostgreSQL
+container.
 
 1. Install dependencies:
 
@@ -96,50 +100,20 @@ deep-dive (domain model, state machine, layered design, and trade-offs), and
 
    The API listens on http://localhost:3000.
 
+For containerized deployment, reverse-proxy setup, and production secrets, see
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## API Documentation
 
-Interactive API documentation is served by Swagger UI at
-http://localhost:3000/api/docs. The machine-readable spec is available at
-http://localhost:3000/api/docs/openapi.json, and its source of truth lives in
-[`docs/openapi.yaml`](docs/openapi.yaml). The served document reads
-`info.version` from `package.json` and sets `servers` to a relative URL (`/`),
-so Swagger UI targets the same origin that serves the docs in every deployment.
-Visiting `http://localhost:3000/api/docs` redirects to
-`http://localhost:3000/api/docs/`, keeping the UI's relative asset paths intact.
+Interactive docs are served by Swagger UI at http://localhost:3000/api/docs,
+with the machine-readable spec at http://localhost:3000/api/docs/openapi.json
+(source of truth: [`docs/openapi.yaml`](docs/openapi.yaml)).
 
-## API Walkthrough
+The detailed API reference lives in [docs/API.md](docs/API.md): endpoint
+contracts, validation rules, error responses, the full cURL walkthrough, the
+persistence model, and migration instructions.
 
-This end-to-end walkthrough drives a request through its whole lifecycle with
-`curl` against `npm run dev` (http://localhost:3000): create, list, view,
-approve, comment, and activities. Reviewers are mocked, so the bearer token is
-a reviewer UUID from the seed data - no passwords or JWTs involved.
-
-The examples assume bash or zsh on macOS/Linux, or PowerShell 7+ on Windows. On
-Windows PowerShell 5.1 call `curl.exe` instead of `curl`; the JSON bodies below
-use single quotes, which both shells pass through literally.
-
-### 1. Grab a reviewer token
-
-Authentication is mocked: send a reviewer's UUID as a bearer token. Open
-Prisma Studio and copy the `id` of any seeded reviewer:
-
-```sh
-npm run db:studio
-```
-
-Export it for the reviewer-only calls:
-
-```sh
-# bash / zsh
-export REVIEWER="<reviewer-uuid>"
-```
-
-```powershell
-# Windows PowerShell 7+
-$env:REVIEWER = "<reviewer-uuid>"
-```
-
-### 2. Create a request
+Here is a skeletal example to get started. Create a request:
 
 ```sh
 curl -s -X POST http://localhost:3000/api/requests \
@@ -168,253 +142,9 @@ Response `201`:
 }
 ```
 
-A request starts in `SUBMITTED`. Save its `data.id` for the next steps.
-
-### 3. List requests
-
-```sh
-curl -s http://localhost:3000/api/requests
-```
-
-Response `200`:
-
-```json
-{
-  "statusCode": 200,
-  "message": "Operation completed successfully",
-  "data": {
-    "data": [
-      {
-        "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
-        "title": "Laptop upgrade for design team",
-        "department": "Engineering",
-        "requesterName": "Olu Smith",
-        "status": "SUBMITTED",
-        "createdAt": "2026-08-06T09:00:00.000Z",
-        "updatedAt": "2026-08-06T09:00:00.000Z",
-        "comments": [],
-        "activities": []
-      }
-    ],
-    "page": 1,
-    "pageSize": 10,
-    "total": 1,
-    "totalPages": 1
-  }
-}
-```
-
-Pagination and a status filter combine in the query string:
-
-```sh
-curl -s "http://localhost:3000/api/requests?page=1&pageSize=5&status=SUBMITTED"
-```
-
-`page` starts at 1, `pageSize` maxes out at 100, and `status` accepts
-`SUBMITTED`, `IN_REVIEW`, `APPROVED`, `REJECTED`, or `RETURNED`.
-
-### 4. View one request
-
-```sh
-curl -s http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202
-```
-
-Response `200` includes the full activity history:
-
-```json
-{
-  "statusCode": 200,
-  "message": "Operation completed successfully",
-  "data": {
-    "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
-    "title": "Laptop upgrade for design team",
-    "description": "Replace aging laptops.",
-    "department": "Engineering",
-    "requesterName": "Olu Smith",
-    "status": "SUBMITTED",
-    "createdAt": "2026-08-06T09:00:00.000Z",
-    "updatedAt": "2026-08-06T09:00:00.000Z",
-    "comments": [],
-    "activities": [
-      {
-        "id": "f00d90ac-5f6e-4d1f-8f90-2a3b4c5d6e7f",
-        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
-        "reviewerId": null,
-        "action": "SUBMISSION",
-        "fromStatus": null,
-        "toStatus": "SUBMITTED",
-        "note": "Olu Smith",
-        "createdAt": "2026-08-06T09:00:00.000Z"
-      }
-    ]
-  }
-}
-```
-
-### 5. Approve the request
-
-Reviewer-only. Send the reviewer UUID from step 1 as the bearer token:
-
-```sh
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
-  -H "Authorization: Bearer $REVIEWER"
-```
-
-Response `200`:
-
-```json
-{
-  "statusCode": 200,
-  "message": "Operation completed successfully",
-  "data": {
-    "id": "050de558-2ec7-401f-8bc3-911ebecb6202",
-    "title": "Laptop upgrade for design team",
-    "description": "Replace aging laptops.",
-    "department": "Engineering",
-    "requesterName": "Olu Smith",
-    "status": "APPROVED",
-    "createdAt": "2026-08-06T09:00:00.000Z",
-    "updatedAt": "2026-08-06T09:00:05.000Z",
-    "comments": [],
-    "activities": [
-      {
-        "id": "f00d90ac-5f6e-4d1f-8f90-2a3b4c5d6e7f",
-        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
-        "reviewerId": null,
-        "action": "SUBMISSION",
-        "fromStatus": null,
-        "toStatus": "SUBMITTED",
-        "note": "Olu Smith",
-        "createdAt": "2026-08-06T09:00:00.000Z"
-      },
-      {
-        "id": "7f88f2ce-f138-4a99-a055-d3cc2eb6101c",
-        "requestId": "050de558-2ec7-401f-8bc3-911ebecb6202",
-        "reviewerId": "d5321303-99dc-469d-90ad-f06b4e56a6b9",
-        "action": "APPROVAL",
-        "fromStatus": "SUBMITTED",
-        "toStatus": "APPROVED",
-        "note": null,
-        "createdAt": "2026-08-06T09:00:05.000Z"
-      }
-    ],
-    "decision": "approve",
-    "reviewerId": "d5321303-99dc-469d-90ad-f06b4e56a6b9",
-    "decidedAt": "2026-08-06T09:00:05.000Z"
-  }
-}
-```
-
-`reject` and `return` work identically; `return` includes a mandatory
-`comment` body so the requester knows what to fix.
-
-### 6. Leave a comment
-
-```sh
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/comments \
-  -H "Authorization: Bearer $REVIEWER" \
-  -H "Content-Type: application/json" \
-  -d '{"body":"Looks good, approved."}'
-```
-
-Response `201` echoes the created comment with the reviewer's id and
-timestamp.
-
-### 7. Inspect the activity history
-
-```sh
-curl -s http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/activities
-```
-
-Response `200` lists every action chronologically (`SUBMISSION`, then
-`APPROVAL`), each with the acting reviewer, the from/to statuses, and a note.
-The history is append-only: it is never rewritten or deleted.
-
-### Error cases worth knowing
-
-A missing or invalid bearer token on a reviewer-only route returns `401`:
-
-```sh
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve
-```
-
-```json
-{
-  "statusCode": 401,
-  "message": "Missing or invalid authorization header",
-  "code": "UNAUTHORIZED",
-  "requestId": "9c792ae8-0d06-4d11-af1e-8d8ca427c715"
-}
-```
-
-An unknown request id returns `404`:
-
-```sh
-curl -s http://localhost:3000/api/requests/00000000-0000-0000-0000-000000000000
-```
-
-```json
-{
-  "statusCode": 404,
-  "message": "Request not found",
-  "code": "NOT_FOUND",
-  "requestId": "bd7b7b5f-0fdf-4284-aa41-845a856319e5",
-  "errors": { "request_id": "00000000-0000-0000-0000-000000000000" }
-}
-```
-
-An invalid payload returns `422` with one entry per offending field:
-
-```sh
-curl -s -X POST http://localhost:3000/api/requests \
-  -H "Content-Type: application/json" \
-  -d '{"title":""}'
-```
-
-```json
-{
-  "statusCode": 422,
-  "message": "Validation failed",
-  "code": "VALIDATION_ERROR",
-  "requestId": "ac7f71d6-3c7a-4ea4-89d4-6d14f89ba504",
-  "errors": [
-    { "field": "title", "message": "Too small: expected string to have >=1 characters" },
-    { "field": "department", "message": "Invalid input: expected string, received undefined" },
-    { "field": "requesterName", "message": "Invalid input: expected string, received undefined" }
-  ]
-}
-```
-
-Decisions that violate the transition table return `400` (`BAD_REQUEST`, see
-[Error Codes](#error-codes)). Duplicate decisions are only reachable when two
-requests race: fire several approvals at once and exactly one wins with `200`
-while the rest get `409` (`CONFLICT`, "A decision has already been recorded for
-this request"):
-
-```sh
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
-  -H "Authorization: Bearer $REVIEWER" &
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
-  -H "Authorization: Bearer $REVIEWER" &
-curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
-  -H "Authorization: Bearer $REVIEWER" &
-wait
-```
-
-```json
-{
-  "statusCode": 409,
-  "message": "A decision has already been recorded for this request",
-  "code": "CONFLICT",
-  "requestId": "a5bdf5fc-79f6-4233-a611-c070c51ed18f",
-  "errors": { "request_id": "050de558-2ec7-401f-8bc3-911ebecb6202", "decision": "approve" }
-}
-```
-
-The `408` timeout status is behaviorally covered in [Rate Limiting and
-Timeouts](#rate-limiting-and-timeouts); it fires only when a route exceeds
-`REQUEST_TIMEOUT_MS` (30 s by default), which is impractical to trigger with a
-plain `curl` call.
+A request starts in `SUBMITTED`. See [docs/API.md](docs/API.md) for the full
+lifecycle walkthrough (list, view, decide, resubmit, comment, activities) and
+every error case.
 
 ## Scripts
 
@@ -435,6 +165,9 @@ plain `curl` call.
 
 ## Environment Variables
 
+All variables are declared and validated in `src/config/env.ts` (Zod); missing
+or malformed config fails fast at boot. `npm run dev` loads `.env` via dotenv.
+
 | Variable               | Description                                                                          | Default                                          |
 | ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ |
 | `NODE_ENV`             | `development`, `test`, or `production`                                               | `development`                                    |
@@ -444,169 +177,77 @@ plain `curl` call.
 | `RATE_LIMIT_MAX`       | Max requests allowed per client IP within the window                                 | `100`                                            |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window length                                                             | `900000` (15 min)                                |
 | `REQUEST_TIMEOUT_MS`   | Time after which an in-flight request responds 408                                   | `30000` (30 s)                                   |
-| +                      | `JSON_BODY_LIMIT`                                                                    | Maximum accepted JSON body size                  | `100kb` |
-| +                      | `TRUST_PROXY`                                                                        | Number of trusted reverse-proxy hops             | `0`     |
+| `JSON_BODY_LIMIT`      | Maximum accepted JSON body size                                                      | `100kb`                                          |
+| `TRUST_PROXY`          | Number of trusted reverse-proxy hops                                                 | `0`                                              |
 
-## Rate Limiting and Timeouts
+`TEST_DATABASE_URL` points the DB-backed test suites at a different Postgres
+(e.g. CI); it defaults to the local `postgres_test` service.
+
+## Architecture
+
+The service is layered: Route -> Controller -> Service -> Repository -> Prisma,
+with one flat folder per feature module (`request`, `decision`, `comment`,
+`reviewer`, `activity`, `health`). Services enforce business rules and never
+touch Prisma directly; modules route database access through their own
+repository. See [ARCHITECTURE.md](ARCHITECTURE.md) for the domain model (ERD),
+the enforced state machine, concurrency handling, security model, and
+scalability notes.
+
+## Design Trade-offs
+
+Every major choice is justified with a trade-off in
+[ARCHITECTURE.md](ARCHITECTURE.md). The headline decisions:
+
+- **Express over NestJS**: minimal machinery; the layering is enforced by
+  convention instead of a DI container.
+- **Prisma over TypeORM**: schema-first with a typed generated client and
+  reviewed SQL migrations.
+- **Mock header auth**: reviewer UUID as bearer token keeps the scope on the
+  workflow; no JWT infrastructure. See the known limitations below.
+- **Transactional decisions with a guarded update**: concurrent duplicates are
+  detected and surfaced as `409`, not silently lost.
+- **Offset pagination**: simple and predictable; keyset pagination is the
+  documented upgrade path.
+- **Single service, single Postgres**: simpler operations with no replication;
+  appropriate for this workload.
+
+## Operational Notes
+
+### Rate limiting and timeouts
 
 Every request is subject to a per-IP rate limit (`RATE_LIMIT_MAX` requests per
-`RATE_LIMIT_WINDOW_MS`) and a request timeout (`REQUEST_TIMEOUT_MS`). When the
-limit is exceeded the API responds `429` with `code: TOO_MANY_REQUESTS`; when a
-request exceeds the timeout it responds `408` with `code: REQUEST_TIMEOUT`.
-Both follow the standard error envelope and are logged at warn level with the
-correlation ID. The 408 envelope is only returned while the response headers
-have not yet been sent; if the route has already started responding, the
-timeout ends the response instead, so the client may receive the status already
-sent by the route with a truncated body. The `/health` endpoints are always
-excluded so orchestration probes are never throttled or cut off, and a timed-out
-request never aborts an in-flight database transaction.
+`RATE_LIMIT_WINDOW_MS`) and a request timeout (`REQUEST_TIMEOUT_MS`). Exceeding
+the limit returns `429 TOO_MANY_REQUESTS`; exceeding the timeout returns
+`408 REQUEST_TIMEOUT`. Both use the standard error envelope and are logged at
+warn level with the correlation id. The `/health` endpoints are always excluded
+so orchestration probes are never throttled, and a timed-out request never
+aborts an in-flight database transaction.
 
-## Request Correlation IDs
+### Request correlation IDs
 
-Every request is assigned a correlation ID. The `x-request-id` request header
-is honored when present (for example when seeded by an upstream gateway) and a
-UUID is generated otherwise. The same value is echoed back on the
-`x-request-id` response header, carried on `req.id` in middleware, and written
-as `correlationId` on access-log and error-handler log lines so a single
-request can be traced end to end.
+Every request carries a correlation id: the `x-request-id` header is honored
+when present and a UUID is generated otherwise. It is echoed on the
+`x-request-id` response header and written as `correlationId` on access-log and
+error-handler log lines so a single request can be traced end to end.
 
-## Error Codes
-
-Errors use the shared envelope with a stable `code` that clients can branch on:
-
-```json
-{
-  "statusCode": 409,
-  "message": "Conflict with the current state of the resource",
-  "code": "CONFLICT",
-  "requestId": "3f0a3b1e-...",
-  "errors": { "request_id": "8c1a..." }
-}
-```
-
-`requestId` and `errors` are present only when relevant. The registry lives in
-`src/shared/constants/error-codes.ts`:
-
-| Code                | Meaning                                 | HTTP status |
-| ------------------- | --------------------------------------- | ----------- |
-| `BAD_REQUEST`       | Malformed request or invalid transition | 400         |
-| `UNAUTHORIZED`      | Missing/invalid authorization           | 401         |
-| `NOT_FOUND`         | Resource not found                      | 404         |
-| `CONFLICT`          | State conflict or duplicate decision    | 409         |
-| `VALIDATION_ERROR`  | Zod validation failed                   | 422         |
-| `TOO_MANY_REQUESTS` | Client exceeded the rate limit          | 429         |
-| `REQUEST_TIMEOUT`   | Request exceeded the timeout            | 408         |
-| `DB_ERROR`          | Unmapped database failure               | 500         |
-| `INTERNAL`          | Unhandled internal error                | 500         |
-
-Prisma constraint failures are folded into the same structure: unique violation
-(`P2002`) becomes 409 `CONFLICT`, missing record (`P2025`) becomes 404
-`NOT_FOUND`, foreign key violation (`P2003`) becomes 422 `VALIDATION_ERROR`, and
-any other Prisma error becomes a generic 500 `DB_ERROR`. Malformed JSON bodies
-rejected by the body parser become 400 `BAD_REQUEST`. Internal errors always
-respond with `SYS_MSG.INTERNAL_SERVER_ERROR`; raw Prisma messages, SQL, and
-stack traces are logged but never sent to the client.
-
-## Health Endpoints
-
-Operational probes live at the top level (outside `/api`) and are excluded from
-the access log:
+### Health endpoints
 
 | Endpoint            | Purpose                                                 | Response                                   |
 | ------------------- | ------------------------------------------------------- | ------------------------------------------ |
 | `GET /health`       | Liveness: the process answers, so it always returns 200 | 200 with the app-only liveness report      |
 | `GET /health/ready` | Readiness: reports the database state                   | 200 when the DB is reachable, 503 when not |
 
-The readiness report follows the standard envelope:
+Both are excluded from the access log. `/health/ready` reports `healthy` when
+the database answers `SELECT 1` and `degraded` otherwise, without leaking
+connection details.
 
-```json
-{
-  "statusCode": 200,
-  "message": "Operation completed successfully",
-  "data": {
-    "status": "healthy",
-    "timestamp": "2026-08-06T09:00:00.000Z",
-    "uptime": 123.45,
-    "version": "1.0.0",
-    "checks": { "database": "up" }
-  }
-}
-```
-
-`GET /health/ready` reports `status` as `healthy` when the database responds to
-`SELECT 1` and `degraded` otherwise. The report never leaks the database URL or
-other connection details. `GET /health` is the liveness probe: it always
-returns 200 with an app-only report (`status: "ok"`, no `checks`) and never
-touches the database, so orchestration can restart a hung process even when the
-database is unreachable.
-
-## Operations & Logging
+### Logging
 
 All logging goes through Pino. In development the output is pretty-printed; in
 every other environment it is structured JSON, one object per line. The level
 comes from `LOG_LEVEL` and is forced to `silent` under `NODE_ENV=test`. Health
-probes are excluded from the access log, and every request-scoped line carries
-`correlationId` so it can be matched to the [request correlation ID](#request-correlation-ids)
-echoed in the `x-request-id` response header.
-
-Successful access line (GET `/api/requests`, 200):
-
-```json
-{
-  "level": 30,
-  "time": 1786009635029,
-  "req": {
-    "id": "doc-trace-abc123",
-    "method": "GET",
-    "url": "/api/requests",
-    "remoteAddress": "::1"
-  },
-  "correlationId": "doc-trace-abc123",
-  "res": { "statusCode": 200 },
-  "responseTime": 355,
-  "msg": "request completed"
-}
-```
-
-Client error line (invalid POST body, logged at warn by the error handler):
-
-```json
-{
-  "level": 40,
-  "err": {
-    "type": "ValidationError",
-    "message": "Validation failed",
-    "code": "VALIDATION_ERROR",
-    "details": [
-      { "field": "title", "message": "Too small: expected string to have >=1 characters" }
-    ]
-  },
-  "method": "POST",
-  "url": "/api/requests",
-  "statusCode": 422,
-  "correlationId": "970c789b-...",
-  "msg": "Validation failed"
-}
-```
-
-Server error line (database unreachable, logged at error with the full stack):
-
-```json
-{
-  "level": 50,
-  "err": { "type": "PrismaClientKnownRequestError", "code": "ECONNREFUSED", "stack": "..." },
-  "method": "GET",
-  "url": "/api/requests",
-  "statusCode": 500,
-  "correlationId": "doc-trace-abc123",
-  "msg": "An unexpected error occurred"
-}
-```
-
-5xx responses are also flagged by the access logger as `request errored` instead
-of `request completed`, so failed traffic is easy to grep. See [Error Codes](#error-codes)
-for the full response code reference and [Health Endpoints](#health-endpoints) for
-liveness versus readiness.
+probes are excluded from the access log, and 5xx responses are flagged as
+`request errored` so failed traffic is easy to grep.
 
 ### Troubleshooting
 
@@ -639,7 +280,7 @@ lines, functions, branches, statements), so the run fails when coverage drops
 below the bar. The boot and seed entrypoints (`src/server.ts`,
 `src/database/seed.ts`) are excluded from the report because they are exercised
 by `npm run build` / startup probes and `npm run db:seed`, not by the test
-suite. The coverage report also prints a per-file breakdown.
+suite.
 
 ### Layout
 
@@ -707,7 +348,7 @@ src/
     ├── utils/              Logger, response helpers, async wrapper, health paths
     └── validators/         Shared Zod schemas (pagination)
 tests/                      Global integration, contract, and validation tests + helpers
-docs/                       TRD and OpenAPI spec
+docs/                       TRD, API reference, OpenAPI spec
 ```
 
 Other notable files at the root: `ARCHITECTURE.md` (design deep-dive),
@@ -749,8 +390,7 @@ dependable workflow rather than broad infrastructure:
 - **Header-based mock auth, no token validation**: the bearer token is treated
   directly as a reviewer UUID and looked up by primary key
   (`src/modules/reviewer/reviewer.middleware.ts`). There is no signing,
-  expiry, or refresh; the README walkthrough says the token is a seeded
-  reviewer id, not a JWT.
+  expiry, or refresh; the token is a seeded reviewer id, not a JWT.
 - **Offset-based pagination only**: lists use `page`/`pageSize` mapped to
   Prisma `skip`/`take` (`src/modules/request/request.service.ts`). Deep pages
   become slower; there is no keyset/cursor pagination.
@@ -799,8 +439,9 @@ with, without overstating the division of work.
 
 - **Tests**: optimizing unit, integration, contract, and coverage suites that
   assert the workflow rules, duplicate-decision safety, and error envelopes.
-- **Docs**: scaffolding the README walkthrough, ARCHITECTURE.md, DEPLOYMENT.md,
-  and the OpenAPI spec served by Swagger UI.
+- **Docs**: scaffolding the API walkthrough and contracts in
+  docs/API.md, ARCHITECTURE.md, DEPLOYMENT.md, and the OpenAPI spec served by
+  Swagger UI.
 - **Debugging**: tracing failing tests and Prisma/Express edge cases, mapping
   error codes, and fixing the issues they exposed.
 
