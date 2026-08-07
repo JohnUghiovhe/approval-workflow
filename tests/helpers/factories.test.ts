@@ -6,7 +6,7 @@ import { isDatabaseAvailable } from './database.ts';
 import { authenticateAs, createRequest, createReviewer } from './factories.ts';
 
 // The pure authenticateAs cases always run; the factory round-trips hit the
-// database, so they skip when it is unreachable (rule 16).
+// database, so they skip when it is unreachable.
 const dbAvailable = await isDatabaseAvailable();
 const itDb = dbAvailable ? it : it.skip;
 

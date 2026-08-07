@@ -26,3 +26,19 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Editor and IDE directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace

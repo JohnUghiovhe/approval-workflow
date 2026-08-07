@@ -10,7 +10,7 @@ import { catchAsync } from '../src/shared/utils/async-wrapper.ts';
 import { isDatabaseAvailable } from './helpers/database.ts';
 
 // The error mapping runs without a database; this suite exercises the unique
-// constraint path end to end, so it skips when the DB is unreachable (rule 16).
+// constraint path end to end, so it skips when the DB is unreachable.
 const dbAvailable = await isDatabaseAvailable();
 const itDb = dbAvailable ? it : it.skip;
 

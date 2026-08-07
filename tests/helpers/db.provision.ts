@@ -27,7 +27,7 @@ function isDatabaseReachable(): Promise<boolean> {
 }
 
 // DB-backed suites expect a provisioned schema and skip when the database is
-// unreachable (rule 16). Apply the migrations before any test file is imported
+// unreachable. Apply the migrations before any test file is imported
 // so the suites can probe readiness with a plain SELECT 1. When the test
 // database is not running, report it once and let the suites skip.
 export default async function setup(): Promise<void> {

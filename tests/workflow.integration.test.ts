@@ -12,8 +12,8 @@ import { isDatabaseAvailable } from './helpers/database.ts';
 import { authenticateAs, createRequest, createReviewer } from './helpers/factories.ts';
 
 // DB-backed suite: probe once and skip every case when the database is
-// unreachable so the default `npm test` run never needs infrastructure
-// (rule 16). Rollback, immutable history and the service-level concurrent 409
+// unreachable so the default `npm test` run never needs infrastructure.
+// Rollback, immutable history and the service-level concurrent 409
 // are proven in transactions.integration.test.ts; this suite walks the state
 // machine through the HTTP API and asserts the error matrix.
 const dbAvailable = await isDatabaseAvailable();

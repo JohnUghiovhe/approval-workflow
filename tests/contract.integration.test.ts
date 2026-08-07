@@ -17,7 +17,7 @@ import { resetDatabase } from './helpers/cleanup.ts';
 import { isDatabaseAvailable } from './helpers/database.ts';
 import { authenticateAs, createReviewer } from './helpers/factories.ts';
 
-// P4-7 (stretch): contract validation. The OpenAPI spec in docs/openapi.yaml is
+// Contract validation: the OpenAPI spec in docs/openapi.yaml is
 // the documented source of truth; this suite dereferences it, compiles the
 // response schemas with Ajv, then validates a sample of live responses against
 // them so the spec cannot drift silently from the implementation.

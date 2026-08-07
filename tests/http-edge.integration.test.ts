@@ -14,11 +14,11 @@ import { resetDatabase } from './helpers/cleanup.ts';
 import { isDatabaseAvailable } from './helpers/database.ts';
 import { authenticateAs, createRequest, createReviewer } from './helpers/factories.ts';
 
-// Closes the P4-3 HTTP-level gaps that the middleware unit tests only prove
-// in isolation: the 422 envelope through the real routes, timeout behavior at
+// Closes the HTTP-level gaps that the middleware unit tests only prove in
+// isolation: the 422 envelope through the real routes, timeout behavior at
 // the HTTP layer, security headers, pagination/filtering success paths, the
 // empty list, and long-text round-tripping. DB-backed cases skip when the
-// test database is unreachable (rule 16).
+// test database is unreachable.
 const dbAvailable = await isDatabaseAvailable();
 const itDb = dbAvailable ? it : it.skip;
 

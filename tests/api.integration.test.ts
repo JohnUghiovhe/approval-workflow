@@ -11,7 +11,7 @@ import { isDatabaseAvailable } from './helpers/database.ts';
 import { authenticateAs, createRequest, createReviewer } from './helpers/factories.ts';
 
 // The wiring (404, 401, envelope) always runs; endpoint round-trips hit the
-// database, so they skip when it is unreachable (rule 16).
+// database, so they skip when it is unreachable.
 const dbAvailable = await isDatabaseAvailable();
 const itDb = dbAvailable ? it : it.skip;
 

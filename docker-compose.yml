@@ -1,7 +1,7 @@
 # Local stack: PostgreSQL backing the Prisma data layer plus the service
 # container. The dev `postgres` service is used by the app and the seed; the
 # test service is isolated so DB-backed test suites never touch development
-# data (rule 16).
+# data.
 services:
   app:
     build:

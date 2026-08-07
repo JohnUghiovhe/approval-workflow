@@ -1,5 +1,8 @@
 # Approval Workflow Service
 
+[![CI](https://github.com/JohnUghiovhe/approval-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/JohnUghiovhe/approval-workflow/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/JohnUghiovhe/approval-workflow)](https://github.com/JohnUghiovhe/approval-workflow/blob/main/LICENSE)
+
 A backend service that models departmental approval requests. Authorized
 reviewers can approve, reject, or return requests for correction. Every
 decision follows a valid state transition and is recorded in an append-only
@@ -11,6 +14,26 @@ requirements, [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation
 deep-dive (domain model, state machine, layered design, and trade-offs), and
 [DEPLOYMENT.md](DEPLOYMENT.md) for running the packaged service with Docker
 (container build, migrations, reverse proxy, secrets).
+
+## Table of Contents
+
+- [Tech Stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [API Documentation](#api-documentation)
+- [API Walkthrough](#api-walkthrough)
+- [Scripts](#scripts)
+- [Environment Variables](#environment-variables)
+- [Rate Limiting and Timeouts](#rate-limiting-and-timeouts)
+- [Request Correlation IDs](#request-correlation-ids)
+- [Error Codes](#error-codes)
+- [Health Endpoints](#health-endpoints)
+- [Operations & Logging](#operations--logging)
+- [Testing Guide](#testing-guide)
+- [Project Structure](#project-structure)
+- [Implementation Notes](#implementation-notes)
+- [Deferred Work & Known Limitations](#deferred-work--known-limitations)
+- [AI Use Disclosure](#ai-use-disclosure)
 
 ## Tech Stack
 
@@ -670,20 +693,26 @@ Husky runs the same checks on commit through lint-staged.
 src/
 ├── app.ts                  Express app assembly (middleware, 404, error handler)
 ├── server.ts               Boot + graceful shutdown
-├── config/env.ts           Zod-validated environment loader
+├── config/                 Zod-validated env loader (env.ts) and OpenAPI config (openapi.ts)
 ├── database/               Prisma schema, migrations, seed, client singleton
 ├── modules/                Feature modules (request, decision, comment, reviewer, activity, health)
-├── routes/                 Route aggregation (apiRouter under /api)
+│   └── <module>/           Controller, service, repository, routes, schema, types + tests/
+│                           (reviewer is an auth middleware; activity/health skip the schema)
+├── routes/                 Route aggregation under /api and Swagger docs routes
 └── shared/
-    ├── constants/          HttpStatus and SYS_MSG constants
+    ├── constants/          HttpStatus, SYS_MSG, and error-code constants
     ├── errors/             AppError base + typed subclasses, Zod formatter
     ├── middleware/         validate, rate limiter, timeout, error handler, 404 handler
     ├── types/              Shared API response types
-    ├── utils/              Logger, response helpers, async wrapper
+    ├── utils/              Logger, response helpers, async wrapper, health paths
     └── validators/         Shared Zod schemas (pagination)
-tests/                      Global tests
-docs/                       TRD, ticket tracking, task rules, OpenAPI spec
+tests/                      Global integration, contract, and validation tests + helpers
+docs/                       TRD and OpenAPI spec
 ```
+
+Other notable files at the root: `ARCHITECTURE.md` (design deep-dive),
+`DEPLOYMENT.md` (Docker packaging), `Dockerfile`, `docker-compose.yml`,
+`LICENSE`, and `docs/openapi.yaml` (the OpenAPI source of truth).
 
 ## Implementation Notes
 

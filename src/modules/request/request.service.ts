@@ -35,7 +35,7 @@ function toActivityDto(row: activity): ActivityDto {
   };
 }
 
-// Map snake_case rows to the camelCase API shape (rule 12). Relations are
+// Map snake_case rows to the camelCase API shape. Relations are
 // optional because list/create rows do not load them. Shared with the decision
 // module so every endpoint returns the same request payload.
 export function toRequestDto(

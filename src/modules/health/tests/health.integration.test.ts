@@ -8,7 +8,7 @@ import { healthResponseSchema, livenessResponseSchema } from '../health.schema.t
 import { probeDatabase } from '../health.repository.ts';
 
 // The healthy path probes the real database, so it must not fail (nor hang)
-// when no database is reachable (rule 16). The degraded path is deterministic:
+// when no database is reachable. The degraded path is deterministic:
 // the repository probe is mocked to report the database down, so it never
 // touches infrastructure.
 vi.mock('../health.repository.ts', async (importOriginal) => {

@@ -11,7 +11,7 @@ export type DbClient = Prisma.TransactionClient | PrismaClient;
 // workflow maps them to activity_action values.
 export type DecisionAction = 'approve' | 'reject' | 'return';
 
-// CamelCase API shape for a single activity row (rule 12). The action keeps
+// CamelCase API shape for a single activity row. The action keeps
 // its stored enum value so clients can branch on it directly.
 export interface ActivityDto {
   id: string;

@@ -34,7 +34,15 @@
     "type": "git",
     "url": "git+https://github.com/JohnUghiovhe/approval-workflow.git"
   },
-  "keywords": [],
+  "keywords": [
+    "approval-workflow",
+    "workflow",
+    "express",
+    "typescript",
+    "prisma",
+    "postgresql",
+    "rest-api"
+  ],
   "author": "John Ughiovhe",
   "license": "ISC",
   "type": "module",

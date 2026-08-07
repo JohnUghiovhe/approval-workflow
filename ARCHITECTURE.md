@@ -19,8 +19,7 @@ Related documents:
 
 ## 1. Repository Layout
 
-The project follows the scaffolded per-module template from
-[docs/task.md](docs/task.md) (rules 13 and 14): every module owns its controller,
+The project follows a per-module template: every module owns its controller,
 service, repository, routes, schema, types, and tests in one flat folder.
 
 ```text
@@ -161,8 +160,8 @@ Route -> Controller -> Service -> Repository -> Prisma
 
 Unmatched routes are converted to a JSON 404 by `src/shared/middleware/not-found.ts`
 so clients never see Express's default HTML page. The envelope contract lives in
-`src/shared/utils/response.ts` and `src/shared/types/api-response.ts`; rule 18
-from `docs/task.md` forbids ad-hoc response shapes.
+`src/shared/utils/response.ts` and `src/shared/types/api-response.ts`; ad-hoc
+response shapes are forbidden by the shared envelope contract.
 
 ---
 
@@ -232,8 +231,7 @@ Cardinality summary:
 Key design points:
 
 - All columns are snake_case; the API is camelCase. The mapping happens in the
-  service DTO functions (`toRequestDto`, `toCommentDto`, `toActivityDto`) per
-  rule 12 in `docs/task.md`.
+  service DTO functions (`toRequestDto`, `toCommentDto`, `toActivityDto`).
 - `request.status` is a Postgres enum (`request_status`) with a dedicated index
   because it drives the list filter and every decision query.
 - `activity` is append-only at the repository boundary: `src/modules/activity/activity.repository.ts`
@@ -252,10 +250,10 @@ Key design points:
 
 The ticket sketch in this assessment describes `SUBMITTED -> IN_REVIEW -> ...`,
 but the implemented schema and decision service do not contain an `IN_REVIEW`
-state. Per the task instruction to follow the current repo structure over the
-ticket's own wording, this document describes the transitions the code actually
-enforces (the TRD workflow table in
-[docs/Approval_Workflow_TRD.md](docs/Approval_Workflow_TRD.md) matches these).
+state. Following the current repo structure over the ticket's own wording, this
+document describes the transitions the code actually enforces (the TRD workflow
+table in [docs/Approval_Workflow_TRD.md](docs/Approval_Workflow_TRD.md) matches
+these).
 
 Enforced transitions (in `src/modules/decision/decision.service.ts:22`):
 
@@ -309,8 +307,7 @@ service).
 
 - Trade-off: a single shared "workflow" service would centralize the rules but
   would couple every module to one god object. The per-module split keeps tests
-  local to the code they verify (`src/modules/<module>/tests/`), which is the
-  layout rule 13 in `docs/task.md` mandates.
+  local to the code they verify (`src/modules/<module>/tests/`).
 
 ### 5.2 Express (not NestJS)
 
@@ -322,7 +319,7 @@ convention rather than by a DI container.
   box, but adds decorator abstractions and a heavier mental model. For a service
   this size, manual constructor injection (`new RequestService()`) keeps the
   dependency graph visible. Express 5 also auto-forwards async rejections, but
-  handlers are still wrapped in `catchAsync` explicitly per rule 20 for clarity.
+  handlers are still wrapped in `catchAsync` explicitly for clarity.
 
 ### 5.3 Prisma (not TypeORM)
 
@@ -334,7 +331,7 @@ typed client (`src/generated/`, gitignored), and a driver adapter
   the single source of truth, which removes drift between entities and the DB.
   The cost is a generated client that must be regenerated after schema changes
   (handled by `postinstall` and `npm run db:migrate`), and less raw-SQL control
-  in application code (raw SQL is confined to migrations per rule 10).
+  in application code (raw SQL is confined to migrations).
 
 ### 5.4 Zod for validation
 
@@ -503,11 +500,10 @@ resolves the reviewer row, and attaches `req.reviewer` (typed via
 
 - All environment variables are declared and validated in
   `src/config/env.ts` (Zod schema), which fails fast at boot on missing or
-  malformed config. No code reads `process.env` directly outside that file
-  (rules 9 and 11).
+  malformed config. No code reads `process.env` directly outside that file.
 - `.env` is gitignored; `.env.example` documents the variables. `DATABASE_URL`
   is required outside tests (a throwaway default exists under `NODE_ENV=test`
-  so unit tests need no secrets, rule 16).
+  so unit tests need no secrets).
 - Pino redacts `Authorization` and cookie headers from all logs
   (`logger.ts:16`).
 - Additional HTTP hardening: `helmet`, CORS, per-IP rate limiting, a request
