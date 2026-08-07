@@ -4,9 +4,9 @@
   "description": "Approval workflow service for the Peerless backend engineer assessment",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "node api.js && tsx watch src/server.ts",
+    "build": "node api.js && tsc -p tsconfig.json",
+    "start": "node api.js && node dist/server.js",
     "typecheck": "tsc -p tsconfig.check.json",
     "lint": "eslint src/ tests/ eslint.config.ts prisma.config.ts vitest.config.ts",
     "lint:fix": "eslint src/ tests/ eslint.config.ts prisma.config.ts vitest.config.ts --fix",
