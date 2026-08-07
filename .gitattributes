@@ -1,0 +1,5 @@
+# Normalize every text file to LF on commit and checkout, overriding the
+# platform's core.autocrlf setting. The codebase and Prettier (endOfLine: lf)
+# assume LF; without this, Windows clones rewrite files to CRLF and fail
+# lint and format checks.
+* text=auto eol=lf
