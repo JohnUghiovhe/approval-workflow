@@ -94,7 +94,9 @@ paths:
       summary: Create a request
       description: >
         Creates a request in SUBMITTED state and records its submission activity
-        in the same transaction. Public; no bearer token required.
+        in the same transaction. The comments and activities relations are
+        intentionally empty in the response (create/list omit them); fetch the
+        request to read its history. Public; no bearer token required.
       operationId: createRequest
       requestBody:
         required: true
@@ -641,8 +643,9 @@ components:
       scheme: bearer
       description: >
         Reviewer token. Authentication is mocked: the bearer token is the
-        reviewer id, and the header must be present on reviewer-only endpoints.
-        Request: `Authorization: Bearer <reviewer-uuid>`.
+        reviewer id, the header must be present on reviewer-only endpoints, and
+        the reviewer must be active (revocation sets is_active to false rather
+        than deleting the row). Request: `Authorization: Bearer <reviewer-uuid>`.
 
   parameters:
     RequestId:
@@ -827,7 +830,11 @@ components:
               INTERNAL,
             ]
         errors:
-          description: Optional validation issues or business error details
+          description: >-
+            Optional validation issues or business error details. Validation
+            failures are an array of { field, message } with camelCase field
+            names; business errors are an object whose keys are snake_case
+            (matching DB columns), e.g. request_id, current_status.
           oneOf:
             - type: array
               items:

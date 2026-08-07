@@ -61,12 +61,29 @@ describe('requireReviewer', () => {
     expect(res.body.message).toBe(SYS_MSG.REVIEWER_NOT_FOUND);
   });
 
+  it('rejects a disabled reviewer', async () => {
+    mocks.findById.mockResolvedValue({
+      id: 'reviewer-2',
+      name: 'Grace Nwosu',
+      email: 'grace.nwosu@peerless.com',
+      role: 'reviewer',
+      is_active: false,
+    });
+
+    const res = await request(app).get('/protected').set('Authorization', 'Bearer reviewer-2');
+
+    expect(mocks.findById).toHaveBeenCalledWith(expect.anything(), 'reviewer-2');
+    expect(res.status).toBe(HttpStatus.UNAUTHORIZED);
+    expect(res.body.message).toBe(SYS_MSG.REVIEWER_DISABLED);
+  });
+
   it('attaches the reviewer context and continues for a known reviewer', async () => {
     mocks.findById.mockResolvedValue({
       id: 'reviewer-1',
       name: 'Amina Bello',
       email: 'amina.bello@peerless.com',
       role: 'reviewer',
+      is_active: true,
     });
 
     const res = await request(app).get('/protected').set('Authorization', 'Bearer reviewer-1');

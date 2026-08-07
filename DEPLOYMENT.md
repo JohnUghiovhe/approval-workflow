@@ -38,11 +38,6 @@ docker compose build
 This builds `approval-workflow-service:latest`. The runtime image runs as
 `uid=1000(node)` (never root); verify with:
 
-```sh
-docker run --rm --entrypoint id approval-workflow-service:latest
-# uid=1000(node) gid=1000(node)
-```
-
 ## Environment Variables
 
 | Variable               | Description                                                       | Compose default                                                                |
@@ -65,12 +60,13 @@ sensible defaults).
 ## Running the Stack
 
 ```sh
-docker compose up -d
+docker compose up -d --wait
 ```
 
 Compose starts `postgres` first (it is declared as a dependency with
-`condition: service_healthy`), then the `app` container. Both expose
-healthchecks. Wait for the app to become healthy:
+`condition: service_healthy`), then the `app` container; `--wait` blocks until
+both are healthy. Both expose healthchecks. Wait for the app to become
+healthy:
 
 ```sh
 docker compose ps
@@ -167,9 +163,10 @@ serves the UI through the proxy.
 - **Database**: the compose file attaches the `postgres_data` named volume to
   `postgres:/var/lib/postgresql/data`. This volume is the only durable state;
   do not delete it unless you intend to wipe data. Back it up (e.g. `pg_dump`)
+- **Database**: the compose file attaches the `postgres_data` named volume to
+  `postgres_data:/var/lib/postgresql/data`. This volume is the only durable state;
+  do not delete it unless you intend to wipe data. Back it up (e.g. `pg_dump`)
   before upgrades.
-- **App**: the service is stateless and writes nothing to disk. It needs no
-  volume. Do not bind-mount source or `node_modules` over the container.
 
 ## Secrets Guidance
 
@@ -182,14 +179,18 @@ serves the UI through the proxy.
   reviewer tokens never appear in structured logs.
 - The image runs as a non-root user as a defense-in-depth measure; do not
   re-introduce `USER root` or privileged flags without a strong reason.
-- Rotation: because reviewer auth is a bearer UUID, treat a reviewer id that
-  must be revoked by deleting the reviewer row (comments block deletion with
-  `Restrict`, activities null out with `SetNull`).
+- Rotation: because reviewer auth is a bearer UUID, revoke a reviewer by
+  disabling them, not by deleting the row. Set `is_active = false` on the
+  reviewer record (e.g. `UPDATE reviewer SET is_active = false WHERE id =
+'<uuid>';`); authentication rejects disabled reviewers, and the flag keeps
+  their comments (`Restrict` would block a row delete) and activity history
+  (`SetNull`) intact, so revocation stays possible after a reviewer has
+  commented.
 
 ## Upgrading an Existing Deployment
 
 1. Back up the database volume.
-2. Rebuild and restart: `docker compose up -d --build`.
+2. Rebuild and restart: `docker compose up -d --build --wait`.
 3. Apply new migrations: `docker compose exec app npx prisma migrate deploy`.
 4. Verify readiness with `/health/ready` and run the smoke call
    (`GET /api/requests`).

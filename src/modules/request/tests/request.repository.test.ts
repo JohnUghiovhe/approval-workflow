@@ -16,7 +16,7 @@ describe('request repository', () => {
 
     expect(client.request.findMany).toHaveBeenCalledWith({
       where: undefined,
-      orderBy: { created_at: 'desc' },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       skip: 0,
       take: 10,
     });

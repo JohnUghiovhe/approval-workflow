@@ -26,7 +26,9 @@ export function findMany(
   const { status, skip, take } = options;
   return client.request.findMany({
     where: status ? { status } : undefined,
-    orderBy: { created_at: 'desc' },
+    // Sort by created_at desc with a unique id desc tie-break so rows created
+    // in the same millisecond still have a deterministic order across pages.
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     skip,
     take,
   });

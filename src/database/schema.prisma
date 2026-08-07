@@ -28,6 +28,7 @@ model reviewer {
   name       String
   email      String   @unique
   role       String   @default("reviewer")
+  is_active  Boolean  @default(true)
   created_at DateTime @default(now()) @db.Timestamptz(3)
   updated_at DateTime @updatedAt @db.Timestamptz(3)
 

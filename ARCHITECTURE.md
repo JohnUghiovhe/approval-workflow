@@ -178,6 +178,7 @@ The model matches `src/database/schema.prisma` exactly. Four entities: `reviewer
 │ name              │
 │ email       UQ    │
 │ role              │  default 'reviewer'
+│ is_active         │  default true (disabled = revoked)
 │ created_at        │  Timestamptz(3)
 │ updated_at        │
 └───────┬───────────┘
@@ -375,13 +376,18 @@ See [Section 6.1](#61-decision-transaction-boundaries).
 
 Listing uses `page`/`pageSize` with `skip`/`take`, a parallel `count`, and a
 `pageSize` cap of 100 (`src/shared/validators/pagination.ts:5`,
-`src/modules/request/request.repository.ts:22`).
+`src/modules/request/request.repository.ts:22`). Rows are ordered by
+`created_at desc` with a unique `id desc` tie-break so records created in the
+same millisecond still have a deterministic order.
 
-- Trade-off: offset pagination is simple, stable, and matches the TRD's list
-  semantics, but deep offsets degrade on very large tables because PostgreSQL
-  must scan and discard `skip` rows. Keyset pagination would scale better for
-  huge datasets but adds cursor complexity that this single-service workload
-  does not warrant (see [Section 8](#8-performance-and-scalability)).
+- Trade-off: offset pagination is simple and matches the TRD's list semantics,
+  but it is not snapshot-stable across concurrent mutations. A new row can push
+  a row onto the next page (a caller may see it twice across page fetches) and a
+  deletion can leave a gap, so offset pages can shift while the dataset changes.
+  Deep offsets also degrade on very large tables because PostgreSQL must scan
+  and discard `skip` rows. Keyset pagination would scale better for huge
+  datasets and is cursor-stable, but adds cursor complexity that this
+  single-service workload does not warrant (see [Section 8](#8-performance-and-scalability)).
 
 ---
 
@@ -463,7 +469,9 @@ Authentication is mocked per the TRD: the `Authorization: Bearer <uuid>` header
 carries a reviewer id. `requireReviewer`
 (`src/modules/reviewer/reviewer.middleware.ts:9`) validates the header shape,
 resolves the reviewer row, and attaches `req.reviewer` (typed via
-`src/shared/types/express.d.ts`).
+`src/shared/types/express.d.ts`). A reviewer with `is_active = false` is
+rejected as `401`; revocation is a persisted flag, never a row delete, so a
+revoked reviewer's comments and activity history are preserved.
 
 ### 7.2 Authorization (reviewers only)
 
@@ -526,7 +534,8 @@ resolves the reviewer row, and attaches `req.reviewer` (typed via
 ### 8.2 Pagination
 
 Offset pagination with `page`/`pageSize` (max 100), ordering by `created_at
-desc`, and a parallel `count` for `total`/`totalPages`
+desc` then `id desc` (deterministic tie-break for same-millisecond rows), and a
+parallel `count` for `total`/`totalPages`
 (`request.service.ts:90-105`). The count and page queries run concurrently via
 `Promise.all`.
 
@@ -538,9 +547,10 @@ desc`, and a parallel `count` for `total`/`totalPages`
 - `findById` includes all comments and activities for a request
   (`request.repository.ts:39-46`); a request with a very long history returns a
   large payload. No pagination exists on the nested history endpoints.
-- Decisions are duplicate-prevented but not idempotent-replayable: identical
-  repeat requests return 409 rather than a replay-safe 200. Clients must treat
-  `CONFLICT` as "already decided" and re-fetch.
+- Decisions are duplicate-prevented but not idempotent-replayable: a repeated
+  decision is rejected (400 when the caller observes the already-terminal state,
+  409 when it loses a concurrent race) rather than a replay-safe 200. Clients
+  must treat the rejection as "already decided" and re-fetch.
 - Single service, single PostgreSQL instance, in-process rate limiter (per
   instance), no async workers. Horizontal scaling would require externalizing
   rate limiting and reconsidering the synchronous activity writes.

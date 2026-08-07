@@ -11,13 +11,13 @@ services:
     container_name: approval-workflow-app
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     environment:
       NODE_ENV: production
       PORT: 3000
       # Hostname `postgres` resolves inside the compose network to the service
       # below; credentials match the postgres service's POSTGRES_USER/PASSWORD.
-      DATABASE_URL: postgresql://approval:approval@postgres:5432/approval_workflow?schema=public
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
     depends_on:
       postgres:
         condition: service_healthy

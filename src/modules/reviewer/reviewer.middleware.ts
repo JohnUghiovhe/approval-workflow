@@ -25,6 +25,12 @@ export const requireReviewer = catchAsync(
       throw new UnauthorizedError(SYS_MSG.REVIEWER_NOT_FOUND, { reviewer_id: token });
     }
 
+    // Revocation is a persisted state, not a row delete: disabling the reviewer
+    // keeps their comments and activity history intact while blocking auth.
+    if (!reviewer.is_active) {
+      throw new UnauthorizedError(SYS_MSG.REVIEWER_DISABLED, { reviewer_id: token });
+    }
+
     req.reviewer = {
       id: reviewer.id,
       name: reviewer.name,

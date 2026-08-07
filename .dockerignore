@@ -20,6 +20,6 @@ temp/
 
 # Markdown docs are not needed inside the runtime image, but the OpenAPI spec
 # is served at runtime, so it is re-included below.
-docs/
+docs/*
 !docs/openapi.yaml
 *.md

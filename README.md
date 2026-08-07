@@ -67,7 +67,7 @@ container.
 2. Start PostgreSQL and wait for it to become healthy:
 
    ```sh
-   docker compose up -d postgres
+   docker compose up -d --wait postgres
    ```
 
    The dev database is the one the app and seed use. A second service,
@@ -75,7 +75,7 @@ container.
    skip themselves when it is not running. Start both with:
 
    ```sh
-   docker compose up -d postgres postgres_test
+   docker compose up -d --wait postgres postgres_test
    ```
 
 3. Create the environment file:
@@ -253,7 +253,7 @@ probes are excluded from the access log, and 5xx responses are flagged as
 
 | Symptom                                | Likely cause                                                   | How to diagnose and fix                                                                                                                                                      |
 | -------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/health/ready` returns 503 `degraded` | Database unreachable                                           | Restart with `docker compose up -d` and confirm `docker compose ps`. DB-dependent requests log 500 `DB_ERROR` with `ECONNREFUSED`.                                           |
+| `/health/ready` returns 503 `degraded` | Database unreachable                                           | Restart with `docker compose up -d --wait` and confirm `docker compose ps`. DB-dependent requests log 500 `DB_ERROR` with `ECONNREFUSED`.                                    |
 | 400 `BAD_REQUEST` on a decision        | Decision violates the workflow transition table                | The request already left `Submitted` or is terminal (`Rejected`). See the transition table in `docs/Approval_Workflow_TRD.md`; the warn line carries the request id and url. |
 | 409 `CONFLICT` on a decision           | Duplicate decision for the same request                        | Only the first decision wins; `errors.request_id` identifies the request. Check the history with `GET /api/requests/:id/activities`.                                         |
 | 429 `TOO_MANY_REQUESTS`                | Client exceeded `RATE_LIMIT_MAX` within `RATE_LIMIT_WINDOW_MS` | Raise the env limits if legitimate; the `RateLimit-*` response headers show the quota and remaining count. Health endpoints are never throttled.                             |

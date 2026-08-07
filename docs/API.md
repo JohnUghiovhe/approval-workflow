@@ -17,6 +17,10 @@ The machine-readable OpenAPI spec is served by Swagger UI at
 - All timestamps are ISO 8601 UTC (stored as `Timestamptz(3)`).
 - API fields are camelCase; database columns are snake_case. Services map
   between the two (the `toRequestDto`/`toCommentDto`/`toActivityDto` helpers).
+  Business-error detail keys inside the `errors` envelope are the one deliberate
+  exception: they are snake_case to mirror the database columns they identify
+  (for example `request_id`, `current_status`, `attempted_decision`). Validation
+  failure entries keep camelCase `field` names.
 - Authentication is mocked: send a reviewer's UUID as a bearer token
   (`Authorization: Bearer <reviewer-uuid>`) on reviewer-only endpoints. The
   token is looked up as the reviewer primary key; there is no signing, expiry,
@@ -49,8 +53,10 @@ endpoint-specific payload.
 
 `code` is a stable machine-readable identifier clients can branch on.
 `requestId` is the correlation id. `errors` is an array of `{ field, message }`
-entries for validation failures, or an object of business-error details. See
-[Error Responses](#4-error-responses) for the full catalog.
+entries for validation failures, or an object of business-error details. Its
+object keys are snake_case (for example `request_id`, `current_status`,
+`attempted_decision`), a deliberate exception to the camelCase API convention;
+see [Error Responses](#4-error-responses) for the full catalog.
 
 ### Pagination
 
@@ -114,7 +120,10 @@ never leaks the database URL or connection details.
 | `requesterName` | string | yes      | at least 1 character                |
 
 Creates the request in `SUBMITTED` and records its `SUBMISSION` activity in the
-same transaction. Responds `201` with the full request object.
+same transaction. Responds `201` with the request; the `comments` and
+`activities` relations are intentionally returned empty because create and list
+responses do not load them, so the recorded `SUBMISSION` row is not echoed here.
+Fetch `GET /api/requests/:id` to read the history (see [View a request](#24-view-a-request)).
 
 ### 2.3 List requests
 
@@ -169,7 +178,10 @@ The valid transitions are enforced by the state machine:
 
 There is no `IN_REVIEW` state; APPROVED and REJECTED are terminal. A decision
 that does not match the table returns `400 BAD_REQUEST`. When two decisions race
-for the same request, exactly one succeeds with `200` and the others get
+for the same request, exactly one succeeds with `200`. A call that observes the
+already-terminal state (for example a sequential repeat after the winner
+committed) returns `400 BAD_REQUEST`; a call that passed the initial check but
+loses the guarded status update (a truly concurrent duplicate) returns
 `409 CONFLICT`.
 
 ### 2.6 Add a comment
@@ -296,7 +308,10 @@ Response `201`:
 }
 ```
 
-A request starts in `SUBMITTED`. Save its `data.id` for the next steps.
+A request starts in `SUBMITTED`. Save its `data.id` for the next steps. Note
+that `comments` and `activities` are empty here even though the `SUBMISSION`
+row was recorded: create responses intentionally omit relations. The view step
+below shows the full history.
 
 ### 3. List requests
 
@@ -558,8 +573,10 @@ after the request was already approved, responds:
 ```
 
 Duplicate decisions are only reachable when two requests race: fire several
-approvals at once and exactly one wins with `200` while the rest get `409`
-(`CONFLICT`, "A decision has already been recorded for this request"):
+approvals at once and exactly one wins with `200` while the concurrent losers
+get `409` (`CONFLICT`, "A decision has already been recorded for this request").
+A caller that starts after the winner already committed sees the terminal state
+and gets `400` instead:
 
 ```sh
 curl -s -X POST http://localhost:3000/api/requests/050de558-2ec7-401f-8bc3-911ebecb6202/approve \
@@ -623,7 +640,7 @@ and migration workflow.
 
 ```sh
 npm install          # postinstall runs prisma generate
-docker compose up -d postgres
+docker compose up -d --wait postgres
 npm run db:migrate   # create/apply a Prisma migration
 npm run db:seed      # idempotent reviewers + requests
 ```

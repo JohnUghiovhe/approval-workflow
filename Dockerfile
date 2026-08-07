@@ -59,6 +59,6 @@ EXPOSE 3000
 # Healthcheck the liveness endpoint with Node's built-in fetch so the probe
 # needs no extra package in the alpine image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "const port=process.env.PORT??'3000'; fetch(`http://127.0.0.1:${port}/health`).then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
 
 CMD ["node", "dist/server.js"]
