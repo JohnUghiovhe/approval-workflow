@@ -691,3 +691,94 @@ docs/                       TRD, ticket tracking, task rules, OpenAPI spec
 - All responses use the shared JSON envelope; unmatched routes return a JSON
   404 through `src/shared/middleware/not-found.ts`.
 - `src/generated/` is produced by `prisma generate` and is gitignored.
+
+## Deferred Work & Known Limitations
+
+This section records the intentional scope cuts for the MVP and the limits
+that are accurate to the current code. It is the source of truth for what the
+service does and does not do, so reviewers can judge the trade-offs against
+the assessment criteria.
+
+### Deferred for MVP
+
+Each of these was deliberately left out to keep the scope on one complete,
+dependable workflow rather than broad infrastructure:
+
+| Deferred item       | Rationale                                                                 |
+| ------------------- | ------------------------------------------------------------------------- |
+| Email notifications | Deciding parties would be notified out-of-band; requires SMTP/queue infra |
+| File uploads        | Requests carry no attachments or evidence; would add storage/validation   |
+| Approval chains     | Multi-step workflows with ordered approvers; the MVP models one decision  |
+| RBAC                | Only a single reviewer role is modeled; no role hierarchy is enforced     |
+| Admin dashboard     | Swagger UI documents the API; a management UI is out of scope             |
+| Multi-tenancy       | No organization/workspace isolation; single-team deployment assumed       |
+| Request templates   | No reusable form templates for common request types                       |
+| Workflow designer   | No UI for authoring workflows; the state machine is code-defined          |
+
+### Known Limitations (accurate to current code)
+
+- **Header-based mock auth, no token validation**: the bearer token is treated
+  directly as a reviewer UUID and looked up by primary key
+  (`src/modules/reviewer/reviewer.middleware.ts`). There is no signing,
+  expiry, or refresh; the README walkthrough says the token is a seeded
+  reviewer id, not a JWT.
+- **Offset-based pagination only**: lists use `page`/`pageSize` mapped to
+  Prisma `skip`/`take` (`src/modules/request/request.service.ts`). Deep pages
+  become slower; there is no keyset/cursor pagination.
+- **Single service**: one process serves the API; there are no queues, workers,
+  or shards.
+- **Synchronous processing**: every decision and activity write completes
+  within the request lifecycle; there are no background jobs.
+- **Single PostgreSQL**: one `DATABASE_URL` with no read replicas. The
+  `postgres_test` container is test isolation, not replication.
+- **No request encryption at rest**: columns are stored plaintext; transport is
+  the only encryption layer (TLS via the reverse proxy).
+- **Reviewer role stored but not enforced**: a `role` column exists on the
+  reviewer entity, but no role-based rules are applied, so this is not RBAC.
+
+### Prioritized Improvements
+
+Quick wins:
+
+- Response caching for `GET /requests` list reads (in-memory or Redis with a
+  short TTL), keeping pagination and filter combinations in the cache key.
+- Read replicas: route analytics-heavy reads to a replica while writes stay on
+  the primary.
+- Keyset/cursor pagination for deep lists to bound query cost.
+- Tuned indexes once real list filter patterns are known.
+
+Major refactors:
+
+- Real authentication (JWT/OIDC with validation, expiry, and refresh) to
+  replace the header-mocked reviewer lookup.
+- Asynchronous processing (job queues) for notifications, exports, and other
+  out-of-band work.
+- Distributed tracing (OpenTelemetry) for cross-service diagnostics.
+- Encryption at rest (column-level or application-level).
+- Multi-tenancy and RBAC once more than one team or role is in scope.
+
+## AI Use Disclosure
+
+This project was developed with the assistance of AI coding tools, and the
+author has reviewed, validated, and owns the final implementation and every
+decision in it. AI output was always checked against the actual codebase,
+corrected where it drifted, and covered by the automated suite before being
+accepted. The following lists the tools and the specific tasks each assisted
+with, without overstating the division of work.
+
+**Tasks AI assisted with**
+
+- **Tests**: optimizing unit, integration, contract, and coverage suites that
+  assert the workflow rules, duplicate-decision safety, and error envelopes.
+- **Docs**: scaffolding the README walkthrough, ARCHITECTURE.md, DEPLOYMENT.md,
+  and the OpenAPI spec served by Swagger UI.
+- **Debugging**: tracing failing tests and Prisma/Express edge cases, mapping
+  error codes, and fixing the issues they exposed.
+
+**Final ownership**
+
+Every line of code, every test, and every documented decision was reviewed
+and validated by the author (John Ughiovhe) before submission. The author
+performed the final quality and security audit, ran the full suite, and takes
+responsibility for the implementation as delivered. AI suggestions that did
+not survive that review were discarded.
