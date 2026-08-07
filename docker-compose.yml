@@ -1,7 +1,39 @@
-# Local PostgreSQL services backing the Prisma data layer. The dev service is
-# used by the app and the seed; the test service is isolated so DB-backed test
-# suites never touch development data (rule 16).
+# Local stack: PostgreSQL backing the Prisma data layer plus the service
+# container. The dev `postgres` service is used by the app and the seed; the
+# test service is isolated so DB-backed test suites never touch development
+# data (rule 16).
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: approval-workflow-service:latest
+    container_name: approval-workflow-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Hostname `postgres` resolves inside the compose network to the service
+      # below; credentials match the postgres service's POSTGRES_USER/PASSWORD.
+      DATABASE_URL: postgresql://approval:approval@postgres:5432/approval_workflow?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
   postgres:
     image: postgres:16-alpine
     container_name: approval-workflow-postgres

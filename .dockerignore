@@ -1,0 +1,25 @@
+# Local modules and build output are installed/generated inside the image.
+node_modules/
+dist/
+coverage/
+
+# The Prisma client is regenerated during `docker build` (deps stage); sending
+# a local copy adds no value and can drift from the committed schema.
+src/generated/
+
+# Secrets must never enter the build context, even transiently.
+.env
+.env.*
+
+# Local tooling and scratch dirs.
+.git/
+.github/
+.husky/
+tmp/
+temp/
+
+# Markdown docs are not needed inside the runtime image, but the OpenAPI spec
+# is served at runtime, so it is re-included below.
+docs/
+!docs/openapi.yaml
+*.md

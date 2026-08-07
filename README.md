@@ -7,8 +7,10 @@ activity history.
 
 Built for the Peerless backend engineer assessment. See
 [docs/Approval_Workflow_TRD.md](docs/Approval_Workflow_TRD.md) for the full
-requirements and [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation
-deep-dive (domain model, state machine, layered design, and trade-offs).
+requirements, [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation
+deep-dive (domain model, state machine, layered design, and trade-offs), and
+[DEPLOYMENT.md](DEPLOYMENT.md) for running the packaged service with Docker
+(container build, migrations, reverse proxy, secrets).
 
 ## Tech Stack
 
